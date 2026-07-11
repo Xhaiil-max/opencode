@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { Room, RoomEvent, type Participant } from "livekit-client";
 import type { User } from "../types";
 
-const TOKEN_URL = "https://connect-token.xhail.workers.dev";
+const TOKEN_URL = "https://connect-token.kadvabh.workers.dev";
 
 interface UseLiveKitOptions {
   username: string;
