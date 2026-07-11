@@ -1,6 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useLiveKit } from '../hooks/useLiveKit'
 import type { User } from '../types'
 import { Mic, MicOff, MonitorUp, Volume2, VolumeX, Eye, EyeOff, MoreVertical } from 'lucide-react'
+import ParticipantVideo from './ParticipantVideo'
+import { Track } from 'livekit-client'
 
 interface ParticipantTileProps {
   user: User
@@ -12,8 +15,61 @@ export default function ParticipantTile({ user, isCurrent }: ParticipantTileProp
   const [localVolume, setLocalVolume] = useState(user.volume)
   const [localMute, setLocalMute] = useState(false)
   const [localVideoOff, setLocalVideoOff] = useState(user.localVideoDisabled)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  const { room } = useLiveKit({ username: user.id === '1' ? user.name : '', roomName: '' })
+  const currentRoom = room.current
+
+  // Get participant by identity
+  const participant = currentRoom
+    ? currentRoom.localParticipant.identity === user.id
+      ? currentRoom.localParticipant
+      : currentRoom.remoteParticipants.get(user.id)
+    : null
 
   const initials = user.name.split(' ').slice(0, 2).map(n => n[0]).join('')
+
+  useEffect(() => {
+    if (!participant || participant === currentRoom?.localParticipant) return
+
+    const handleTrackSubscription = () => {
+      // Get audio track using Track.Source.Microphone (similar to how ParticipantVideo gets video)
+      const pub = participant.getTrackPublication(Track.Source.Microphone)
+      if (pub?.track && audioRef.current) {
+        // Attach the audio track to the audio element
+        pub.track.attach(audioRef.current)
+        audioRef.current.muted = localMute
+        audioRef.current.volume = localVolume / 100
+      } else if (audioRef.current) {
+        // Detach any existing tracks
+        audioRef.current.srcObject = null
+      }
+    }
+
+    // Subscribe to track events to handle subscription/unsubscription
+    if (participant) {
+      participant.on('trackSubscribed', handleTrackSubscription)
+      participant.on('trackUnsubscribed', handleTrackSubscription)
+      participant.on('trackPublished', handleTrackSubscription)
+      participant.on('trackUnpublished', handleTrackSubscription)
+
+      // Initial check
+      handleTrackSubscription()
+    }
+
+    return () => {
+      if (participant) {
+        participant.off('trackSubscribed', handleTrackSubscription)
+        participant.off('trackUnsubscribed', handleTrackSubscription)
+        participant.off('trackPublished', handleTrackSubscription)
+        participant.off('trackUnpublished', handleTrackSubscription)
+      }
+      // Detach any tracks when cleaning up
+      if (audioRef.current) {
+        audioRef.current.srcObject = null
+      }
+    }
+  }, [participant, currentRoom?.localParticipant, audioRef, localMute, localVolume])
 
   return (
     <div
@@ -22,28 +78,36 @@ export default function ParticipantTile({ user, isCurrent }: ParticipantTileProp
       } ${user.isSharing ? 'ring-2 ring-emerald-500' : ''}`}
       style={{ aspectRatio: user.camOn ? '16/9' : '16/10' }}
     >
-      {user.camOn ? (
-        <div className="absolute inset-0 bg-gradient-to-br from-zinc-700 to-zinc-800 flex items-center justify-center">
-          <span className="text-zinc-500/30 font-mono text-sm">CAM-{user.id}</span>
-          {user.isSharing && (
-            <div className="absolute inset-0 bg-emerald-900/20 flex items-center justify-center">
-              <MonitorUp size={28} className="text-emerald-400/60" />
-            </div>
-          )}
-        </div>
+      {user.camOn && participant && participant !== currentRoom?.localParticipant ? (
+        <ParticipantVideo
+          participant={participant}
+          isLocal={user.id === '1'}
+        />
       ) : (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <>
+          <div className="absolute inset-0 bg-gradient-to-br from-zinc-700 to-zinc-800 flex items-center justify-center">
+            <span className="text-zinc-500/30 font-mono text-sm">CAM-{user.id}</span>
+            {user.isSharing && (
+              <div className="absolute inset-0 bg-emerald-900/20 flex items-center justify-center">
+                <MonitorUp size={28} className="text-emerald-400/60" />
+              </div>
+            )}
+          </div>
           {user.isSharing && !user.localScreenshareDisabled ? (
-            <div className="flex flex-col items-center gap-1">
-              <MonitorUp size={22} className="text-emerald-400/60" />
-              <span className="text-xs text-emerald-400/60 font-mono">SCREEN</span>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-1">
+                <MonitorUp size={22} className="text-emerald-400/60" />
+                <span className="text-xs text-emerald-400/60 font-mono">SCREEN</span>
+              </div>
             </div>
           ) : (
-            <div className="w-14 h-14 rounded-full bg-zinc-700 flex items-center justify-center">
-              <span className="text-lg font-medium text-zinc-300">{initials}</span>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-14 h-14 rounded-full bg-zinc-700 flex items-center justify-center">
+                <span className="text-lg font-medium text-zinc-300">{initials}</span>
+              </div>
             </div>
           )}
-        </div>
+        </>
       )}
 
       <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent flex items-center gap-1.5">
@@ -82,6 +146,14 @@ export default function ParticipantTile({ user, isCurrent }: ParticipantTileProp
           )}
         </div>
       )}
+
+      {/* Audio element for remote participant audio - hidden */}
+      <audio
+        ref={audioRef}
+        autoPlay
+        playsInline
+        muted={localMute}
+      />
     </div>
   )
 }
