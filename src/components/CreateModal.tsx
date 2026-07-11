@@ -3,7 +3,7 @@ import { X, Copy, Check } from 'lucide-react'
 
 interface CreateModalProps {
   onClose: () => void
-  onConfirm: (name: string) => void
+  onConfirm: (name: string, meetingId: string, passcode: string) => void
 }
 
 const generateMeetingId = () => {
@@ -25,7 +25,7 @@ export default function CreateModal({ onClose, onConfirm }: CreateModalProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (username) onConfirm(username)
+    if (username) onConfirm(username, meetingId, passcode)
   }
 
   return (

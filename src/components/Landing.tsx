@@ -4,8 +4,8 @@ import JoinModal from './JoinModal'
 import CreateModal from './CreateModal'
 
 interface LandingProps {
-  onCreateMeeting: (name: string) => void
-  onJoinMeeting: (name: string) => void
+  onCreateMeeting: (name: string, meetingId: string, passcode: string) => void
+  onJoinMeeting: (name: string, id: string, passcode: string) => void
 }
 
 export default function Landing({ onCreateMeeting, onJoinMeeting }: LandingProps) {
@@ -40,7 +40,7 @@ export default function Landing({ onCreateMeeting, onJoinMeeting }: LandingProps
       </div>
 
       {showCreate && <CreateModal onClose={() => setShowCreate(false)} onConfirm={onCreateMeeting} />}
-      {showJoin && <JoinModal onClose={() => setShowJoin(false)} onConfirm={onJoinMeeting} />}
+      {showJoin && <JoinModal onClose={() => setShowJoin(false)} onConfirm={(name, id, passcode) => onJoinMeeting(name, id, passcode)} />}
     </div>
   )
 }

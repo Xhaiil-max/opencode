@@ -3,9 +3,10 @@ import { X, Monitor, MonitorUp, Grid3x3, Crop, Volume2 } from 'lucide-react'
 
 interface ScreenshareModalProps {
   onClose: () => void
+  onStartScreenShare?: () => Promise<void>
 }
 
-export default function ScreenshareModal({ onClose }: ScreenshareModalProps) {
+export default function ScreenshareModal({ onClose, onStartScreenShare }: ScreenshareModalProps) {
   const [tab, setTab] = useState<'main' | 'settings'>('main')
   const [includeAudio, setIncludeAudio] = useState(true)
   const [resolution, setResolution] = useState('1920x1080')
@@ -21,7 +22,7 @@ export default function ScreenshareModal({ onClose }: ScreenshareModalProps) {
 
   const nextStep = () => {
     if (tab === 'main' && selectedTarget) {
-      console.log('Starting screenshare with target:', selectedTarget);
+      onStartScreenShare?.();
       onClose();
     }
   }

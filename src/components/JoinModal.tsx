@@ -3,7 +3,7 @@ import { X } from 'lucide-react'
 
 interface JoinModalProps {
   onClose: () => void
-  onConfirm: (name: string) => void
+  onConfirm: (name: string, meetingId: string, passcode: string) => void
 }
 
 export default function JoinModal({ onClose, onConfirm }: JoinModalProps) {
@@ -13,7 +13,7 @@ export default function JoinModal({ onClose, onConfirm }: JoinModalProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (username && meetingId && passcode) onConfirm(username)
+    if (username && meetingId && passcode) onConfirm(username, meetingId, passcode)
   }
 
   return (

@@ -1,6 +1,5 @@
-import { useState } from 'react'
-import type { User, SelfViewMode, GridPreset } from '../types'
-import { MOCK_USERS } from '../mockData'
+import { useState, useEffect } from 'react'
+import type { SelfViewMode, GridPreset } from '../types'
 import ControlBar from './ControlBar'
 import ParticipantTile from './ParticipantTile'
 import SelfView from './SelfView'
@@ -9,14 +8,17 @@ import ScreenshareModal from './ScreenshareModal'
 import SettingsPanel from './SettingsPanel'
 import PiPView from './PiPView'
 import HostControlRow from './HostControlRow'
+import { useLiveKit } from '../hooks/useLiveKit'
 
 interface MeetingRoomProps {
   username: string
+  roomName: string
   onLeave: () => void
 }
 
-export default function MeetingRoom({ username, onLeave }: MeetingRoomProps) {
-  const [users, setUsers] = useState<User[]>(MOCK_USERS)
+export default function MeetingRoom({ username, roomName, onLeave }: MeetingRoomProps) {
+  const lk = useLiveKit({ username, roomName })
+
   const [selfViewMode, setSelfViewMode] = useState<SelfViewMode>('grid')
   const [gridPreset, setGridPreset] = useState<GridPreset>('tiled')
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -24,43 +26,57 @@ export default function MeetingRoom({ username, onLeave }: MeetingRoomProps) {
   const [showSettings, setShowSettings] = useState(false)
   const [showScreenshare, setShowScreenshare] = useState(false)
   const [showPip, setShowPip] = useState(false)
-  const [isHost] = useState(true)
   const [showHostControls, setShowHostControls] = useState(false)
-  const [isMicOn, setIsMicOn] = useState(true)
-  const [isCamOn, setIsCamOn] = useState(true)
-  const [isDeafened, setIsDeafened] = useState(false)
-  const [isRaisedHand, setIsRaisedHand] = useState(false)
+  const [isHost] = useState(true)
 
-  const sortedUsers = [...users].sort((a, b) => {
+  useEffect(() => { lk.connect(); return () => lk.disconnect() }, [])
+
+  const handleLeave = () => { lk.disconnect(); onLeave() }
+
+  const sortedUsers = [...lk.users].sort((a, b) => {
     if (a.handRaised && !b.handRaised) return -1
     if (!a.handRaised && b.handRaised) return 1
     return 0
   })
 
-  const handleMute = (userId: string) => {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, micOn: false } : u))
-  }
-  const toggleUserCam = (userId: string) => {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, camOn: !u.camOn } : u))
-  }
-  const toggleHandRaised = () => setIsRaisedHand(!isRaisedHand)
+  const hostMuteAll = () => { lk.room.current?.remoteParticipants.forEach((p: any) => { p.setMicrophoneEnabled(false) }) }
+  const hostHideAllCams = () => { lk.room.current?.remoteParticipants.forEach((p: any) => { p.setCameraEnabled(false) }) }
 
-  const hostMuteAll = () => setUsers(prev => prev.map(u => u.isHost ? u : { ...u, micOn: false }))
-  const hostHideAllCams = () => setUsers(prev => prev.map(u => u.isHost ? u : { ...u, camOn: false }))
-  const hostBlockAllScreenshares = () => setUsers(prev => prev.map(u => u.isHost ? u : { ...u, localScreenshareDisabled: true }))
+  if (lk.connectionState === 'disconnected' && !lk.error) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-zinc-950">
+        <div className="text-center">
+          <div className="w-12 h-12 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-zinc-400">Connecting to meeting...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (lk.error) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-zinc-950">
+        <div className="text-center">
+          <p className="text-red-400 mb-2">Failed to connect: {lk.error}</p>
+          <button onClick={handleLeave} className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm">Go Back</button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-screen bg-zinc-950 overflow-hidden">
       <div className="flex-1 flex flex-col relative">
         <div className="flex items-center justify-between px-4 py-2 bg-zinc-950/95 border-b border-zinc-800/50 shrink-0">
-          <span className="text-sm text-zinc-400">Meeting: <code className="text-zinc-200 font-mono">abc-def-ghi</code></span>
+          <span className="text-sm text-zinc-400">Meeting: <code className="text-zinc-200 font-mono">{roomName}</code></span>
           <div className="flex items-center gap-2">
             {isHost && (
-              <button onClick={() => setShowHostControls(!showHostControls)} className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors text-xs font-medium">
+              <button onClick={() => setShowHostControls(!showHostControls)}
+                className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors text-xs font-medium">
                 Host Controls
               </button>
             )}
-            <span className="text-xs text-zinc-500">00:12:34</span>
+            <span className="text-xs text-zinc-500">{lk.connectionState}</span>
           </div>
         </div>
 
@@ -69,10 +85,8 @@ export default function MeetingRoom({ username, onLeave }: MeetingRoomProps) {
             <h3 className="text-sm font-medium mb-3">Host Controls</h3>
             <div className="flex flex-col gap-2">
               <HostControlRow label="Disable Chat" />
-              <HostControlRow label="Mute Everyone" defaultChecked onClick={hostMuteAll} />
-              <HostControlRow label="Disable Screenshares" defaultChecked onClick={hostBlockAllScreenshares} />
-              <HostControlRow label="Disable Cameras" defaultChecked onClick={hostHideAllCams} />
-              <HostControlRow label="Screen Audio" />
+              <HostControlRow label="Mute Everyone" onClick={hostMuteAll} />
+              <HostControlRow label="Disable Cameras" onClick={hostHideAllCams} />
               <HostControlRow label="Chat Slowdown (5s)" />
             </div>
           </div>
@@ -82,13 +96,11 @@ export default function MeetingRoom({ username, onLeave }: MeetingRoomProps) {
           {showPip ? (
             <PiPView
               users={sortedUsers}
-              isMicOn={isMicOn}
-              isCamOn={isCamOn}
-              isDeafened={isDeafened}
-              onMicToggle={() => setIsMicOn(!isMicOn)}
-              onCamToggle={() => setIsCamOn(!isCamOn)}
+              isMicOn={lk.isMicOn}
+              isCamOn={lk.isCamOn}
+              onMicToggle={lk.toggleMic}
               onClosePip={() => setShowPip(false)}
-              onEndCall={onLeave}
+              onEndCall={handleLeave}
             />
           ) : (
             <div className="w-full grid gap-2 h-full"
@@ -108,23 +120,23 @@ export default function MeetingRoom({ username, onLeave }: MeetingRoomProps) {
                   <ParticipantTile user={sortedUsers[0]} isCurrent={true} />
                   <div className="flex flex-col gap-2 overflow-y-auto content-start">
                     {sortedUsers.slice(1).map(u => (
-                      <ParticipantTile key={u.id} user={u} isCurrent={u.id === '1'} />
+                      <ParticipantTile key={u.id} user={u} isCurrent={u.id === username} />
                     ))}
-                    {selfViewMode === 'grid' && <SelfView username={username} camOn={isCamOn} />}
+                    {selfViewMode === 'grid' && <SelfView username={username} camOn={lk.isCamOn} />}
                   </div>
                 </>
               ) : gridPreset === 'sidebar' ? (
                 <>
                   <div className="grid grid-cols-2 gap-2 content-start">
-                    {sortedUsers.map(u => <ParticipantTile key={u.id} user={u} isCurrent={u.id === '1'} />)}
-                    {selfViewMode === 'grid' && <SelfView username={username} camOn={isCamOn} />}
+                    {sortedUsers.map(u => <ParticipantTile key={u.id} user={u} isCurrent={u.id === username} />)}
+                    {selfViewMode === 'grid' && <SelfView username={username} camOn={lk.isCamOn} />}
                   </div>
-                  <SelfView username={username} camOn={isCamOn} large />
+                  <SelfView username={username} camOn={lk.isCamOn} large />
                 </>
               ) : (
                 <>
-                  {sortedUsers.map(u => <ParticipantTile key={u.id} user={u} isCurrent={u.id === '1'} />)}
-                  {selfViewMode === 'grid' && <SelfView username={username} camOn={isCamOn} />}
+                  {sortedUsers.map(u => <ParticipantTile key={u.id} user={u} isCurrent={u.id === username} />)}
+                  {selfViewMode === 'grid' && <SelfView username={username} camOn={lk.isCamOn} />}
                 </>
               )}
             </div>
@@ -132,23 +144,26 @@ export default function MeetingRoom({ username, onLeave }: MeetingRoomProps) {
         </div>
 
         {selfViewMode === 'floating' && !showPip && (
-          <SelfView username={username} camOn={isCamOn} floating />
+          <SelfView username={username} camOn={lk.isCamOn} floating />
         )}
 
         <ControlBar
-          isMicOn={isMicOn}
-          isCamOn={isCamOn}
+          isMicOn={lk.isMicOn}
+          isCamOn={lk.isCamOn}
           isSharing={false}
-          isRaisedHand={isRaisedHand}
-          isDeafened={false}
-          onMicToggle={() => setIsMicOn(!isMicOn)}
-          onCamToggle={() => setIsCamOn(!isCamOn)}
-          onScreenshare={() => setShowScreenshare(true)}
-          onHandRaise={toggleHandRaised}
-          onDeafen={() => setIsDeafened(!isDeafened)}
+          isRaisedHand={lk.isRaisedHand}
+          isDeafened={lk.isDeafened}
+          onMicToggle={lk.toggleMic}
+          onCamToggle={lk.toggleCam}
+          onScreenshare={() => {
+            lk.room.current?.localParticipant.setMicrophoneEnabled(false)
+            setShowScreenshare(true)
+          }}
+          onHandRaise={() => lk.setIsRaisedHand(!lk.isRaisedHand)}
+          onDeafen={() => lk.setIsDeafened(!lk.isDeafened)}
           onFullscreen={() => {}}
           onSettings={() => setShowSettings(true)}
-          onEndCall={onLeave}
+          onEndCall={handleLeave}
           onTogglePip={() => setShowPip(!showPip)}
           selfViewMode={selfViewMode}
           onSelfViewModeToggle={() => setSelfViewMode(v => v === 'floating' ? 'grid' : 'floating')}
@@ -163,12 +178,17 @@ export default function MeetingRoom({ username, onLeave }: MeetingRoomProps) {
           tab={sidebarTab}
           onTabChange={setSidebarTab}
           isHost={isHost}
-          onMute={handleMute}
-          onToggleCam={toggleUserCam}
+          onMute={() => {}}
+          onToggleCam={() => {}}
         />
       )}
 
-      {showScreenshare && <ScreenshareModal onClose={() => setShowScreenshare(false)} />}
+      {showScreenshare && (
+        <ScreenshareModal
+          onClose={() => setShowScreenshare(false)}
+          onStartScreenShare={lk.startScreenShare}
+        />
+      )}
 
       {showSettings && (
         <SettingsPanel
