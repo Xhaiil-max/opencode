@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type { User, ChatMessage, SidebarTab, HostSettings } from '../types'
-import { Mic, MicOff, Video, VideoOff, MonitorUp, MessageSquare, Users, UserX, Smile, PenTool, Hand } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, MonitorUp, MessageSquare, Users, Smile, PenTool, Hand, MoreHorizontal, VolumeX, Trash2 } from 'lucide-react'
 
 const EMOJIS = ['😀', '😂', '😍', '😎', '👍', '👎', '❤️', '🔥', '🎉', '😢', '😡', '🤔', '😴', '🤯', '👋', '🙏', '💪', '🍕', '☕', '🚀', '✨', '💯', '🤝', '🎯', '💡', '🌟', '⚡', '🎨', '🎮', '🎵']
 
@@ -33,6 +33,26 @@ export default function Sidebar({
     setInput('')
   }
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData.items
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (file) {
+          const reader = new FileReader()
+          reader.onload = () => {
+            const base64 = reader.result as string
+            // Send image as a special message
+            onSendMessage(`[IMAGE:${base64}]`)
+          }
+          reader.readAsDataURL(file)
+        }
+      }
+    }
+  }
+
   return (
     <div className="w-80 glass border-r border-border-primary flex flex-col h-full min-h-0 shrink-0">
       <div className="flex items-center p-2 gap-1 border-b border-border-primary shrink-0">
@@ -59,7 +79,7 @@ export default function Sidebar({
             onBroadcastHostAction={onBroadcastHostAction}
           />
         ) : tab === 'chat' ? (
-          <ChatTab messages={messages} onSend={send} input={input} onInputChange={setInput} disabled={chatDisabled} />
+          <ChatTab messages={messages} onSend={send} input={input} onInputChange={setInput} disabled={chatDisabled} onPaste={handlePaste} />
         ) : (
           <ToolsTab 
             onToggleWhiteboard={onToggleWhiteboard} 
@@ -81,40 +101,85 @@ function ParticipantsTab({
   isLocalHost: boolean;
   onBroadcastHostAction: (action: string) => void;
 }) {
+  const [openMenu, setOpenMenu] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenu(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   return (
     <div className="flex-1 overflow-y-auto p-2 scrollbar-thin">
       {users.map(user => {
         const isCurrent = user.id === localIdentity
         const initials = user.name.split(' ').slice(0, 2).map(n => n[0]).join('')
         const userColor = user.color || '#6366f1'
+        const isMenuOpen = openMenu === user.id
+
+        const handleHostAction = (action: string) => {
+          onBroadcastHostAction(`${action}:${user.id}`)
+          setOpenMenu(null)
+        }
+
         return (
-          <div key={user.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-bg-tertiary transition-colors">
-            <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{'backgroundColor': userColor}}>
-              <span className="text-sm font-medium text-white">{initials}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 truncate">
-                <span className="text-sm font-medium truncate" style={{'color': userColor}}>{user.name}{isCurrent ? ' (You)' : ''}</span>
-                {user.handRaised && <Hand size={12} className="text-accent-warning flex-shrink-0" />}
+          <div key={user.id} className="relative" ref={isMenuOpen ? menuRef : undefined}>
+            <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-bg-tertiary transition-colors">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{backgroundColor: userColor}}>
+                <span className="text-sm font-medium text-white">{initials}</span>
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-text-muted">
-                {user.micOn ? <Mic size={10} className="text-accent-success" /> : <MicOff size={10} className="text-accent-error" />}
-                {user.camOn ? <Video size={10} className="text-accent-success" /> : <VideoOff size={10} className="text-accent-error" />}
-                {user.isSharing && <MonitorUp size={10} className="text-accent-success" />}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 truncate">
+                  <span className="text-sm font-medium truncate" style={{color: userColor}}>{user.name}{isCurrent ? ' (You)' : ''}</span>
+                  {user.handRaised && <Hand size={12} className="text-accent-warning flex-shrink-0" />}
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-text-muted">
+                  {user.micOn ? <Mic size={10} className="text-accent-success" /> : <MicOff size={10} className="text-accent-error" />}
+                  {user.camOn ? <Video size={10} className="text-accent-success" /> : <VideoOff size={10} className="text-accent-error" />}
+                  {user.isSharing && <MonitorUp size={10} className="text-accent-success" />}
+                </div>
               </div>
+              {!isCurrent && isLocalHost && (
+                <div className="relative">
+                  <button 
+                    onClick={() => setOpenMenu(isMenuOpen ? null : user.id)}
+                    className="p-1.5 rounded-lg hover:bg-bg-tertiary transition-colors text-text-muted hover:text-text-primary"
+                    title="Host controls"
+                  >
+                    <MoreHorizontal size={14} />
+                  </button>
+                  {isMenuOpen && (
+                    <div className="absolute right-0 top-full mt-1 glass-strong rounded-xl p-1 shadow-2xl z-50 min-w-[160px] animate-fade-in">
+                      <div className="px-2 py-1 text-xs font-medium text-text-muted uppercase tracking-wide">Host Controls</div>
+                      <button onClick={() => handleHostAction('muteParticipant')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
+                        <VolumeX size={14} className="text-accent-warning" />
+                        Mute
+                      </button>
+                      <button onClick={() => handleHostAction('disableVideo')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
+                        <VideoOff size={14} className="text-accent-warning" />
+                        Turn off Camera
+                      </button>
+                      <button onClick={() => handleHostAction('removeParticipant')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-accent-error hover:bg-accent-error/10 rounded-lg transition-colors">
+                        <Trash2 size={14} />
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            {!isCurrent && isLocalHost && (
-              <button className="p-1.5 rounded-lg hover:bg-bg-tertiary transition-colors text-text-muted hover:text-text-primary" onClick={() => onBroadcastHostAction('removeParticipant:' + user.id)} title="Remove participant">
-                <UserX size={14} />
-              </button>
-            )}
           </div>
         )})}
       </div>
   )
 }
 
-function ChatTab({ messages, onSend, input, onInputChange, disabled }: { messages: ChatMessage[]; onSend: () => void; input: string; onInputChange: (v: string) => void; disabled?: boolean }) {
+function ChatTab({ messages, onSend, input, onInputChange, disabled, onPaste }: { messages: ChatMessage[]; onSend: () => void; input: string; onInputChange: (v: string) => void; disabled?: boolean; onPaste?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void }) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const emojiBtnRef = useRef<HTMLButtonElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
@@ -129,6 +194,24 @@ function ChatTab({ messages, onSend, input, onInputChange, disabled }: { message
     return () => document.removeEventListener('click', close)
   }, [showEmojiPicker])
 
+  const renderMessageContent = (content: string) => {
+    // Check if it's an image message
+    if (content.startsWith('[IMAGE:')) {
+      const base64 = content.slice(7, -1) // Remove '[IMAGE:' prefix and ']' suffix
+      return (
+        <div className="mt-1">
+          <img 
+            src={base64} 
+            alt="Shared image" 
+            className="max-w-full rounded-lg border border-border-primary cursor-pointer"
+            onClick={() => window.open(base64, '_blank')}
+          />
+        </div>
+      )
+    }
+    return <div className="text-sm whitespace-pre-wrap text-text-primary">{content}</div>
+  }
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin">
@@ -138,11 +221,11 @@ function ChatTab({ messages, onSend, input, onInputChange, disabled }: { message
               <span className="text-xs font-medium text-text-primary">{msg.sender}</span>
               <span className="text-xs text-text-muted">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
-            <div className="text-sm whitespace-pre-wrap text-text-primary">{msg.content}</div>
+            {renderMessageContent(msg.content)}
           </div>
         ))}
       </div>
-      <div className="p-3 border-t border-border-primary shrink-0">
+      <div className="p-3 border-t border-border-primary shrink-0 relative">
         {disabled ? (
           <p className="text-xs text-text-muted text-center py-2">Chat is disabled by host</p>
         ) : (
@@ -155,6 +238,7 @@ function ChatTab({ messages, onSend, input, onInputChange, disabled }: { message
               value={input}
               onChange={e => onInputChange(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }}
+              onPaste={onPaste}
               placeholder="Message..."
               className="input flex-1 resize-none min-h-[44px] max-h-24"
               rows={1}
@@ -163,7 +247,7 @@ function ChatTab({ messages, onSend, input, onInputChange, disabled }: { message
           </div>
         )}
         {showEmojiPicker && (
-          <div className="absolute bottom-full mb-2 glass-strong rounded-xl p-2 shadow-2xl z-50 flex flex-wrap gap-1 max-w-[280px]">
+          <div className="absolute bottom-full mb-2 left-11 glass-strong rounded-xl p-2 shadow-2xl z-50 flex flex-wrap gap-1 max-w-[280px]">
             {EMOJIS.map(emoji => (
               <button key={emoji} onClick={() => { onInputChange(input + emoji); inputRef.current?.focus(); }} className="p-1.5 hover:bg-bg-tertiary rounded-lg transition-colors text-lg">{emoji}</button>
             ))}

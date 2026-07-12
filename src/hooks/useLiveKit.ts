@@ -133,7 +133,7 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
   }, []);
 
   const handleDataMessage = useCallback(
-    (data: Uint8Array, participant?: Participant) => {
+    async (data: Uint8Array, participant?: Participant) => {
       try {
         const message = JSON.parse(new TextDecoder().decode(data));
         const sender = participant
@@ -204,6 +204,30 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
               setIsRaisedHand(false);
               setUsers((prev) => prev.map((u) => (u.id === targetId ? { ...u, handRaised: false } : u)));
               sounds.handLower();
+            }
+          }
+          if (message.action.startsWith("muteParticipant:")) {
+            const targetId = message.action.split(":")[1];
+            if (targetId === local.identity) {
+              local.setMicrophoneEnabled(false);
+              setIsMicOn(false);
+              sounds.mute();
+            }
+          }
+          if (message.action.startsWith("disableVideo:")) {
+            const targetId = message.action.split(":")[1];
+            if (targetId === local.identity) {
+              local.setCameraEnabled(false);
+              setIsCamOn(false);
+            }
+          }
+          if (message.action.startsWith("removeParticipant:")) {
+            const targetId = message.action.split(":")[1];
+            if (targetId === local.identity) {
+              // Host is removing us - disconnect
+              await room.disconnect();
+              setConnectionState("disconnected");
+              setError("You have been removed from the meeting by the host");
             }
           }
         }
