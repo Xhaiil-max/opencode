@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   Mic, MicOff, Video, VideoOff, MonitorUp, Hand, Ear, EarOff,
-  Settings, PhoneOff, ChevronUp, PanelRight, PanelRightClose, User
+  Settings, PhoneOff, ChevronUp, PanelRight, PanelRightClose, User, PenTool
 } from 'lucide-react'
 
 interface ControlBarProps {
@@ -26,6 +26,8 @@ interface ControlBarProps {
   onSelfViewModeToggle: () => void
   onSwitchAudioDevice: (deviceId: string) => void
   onSwitchVideoDevice: (deviceId: string) => void
+  whiteboardOpen: boolean
+  onToggleWhiteboard: () => void
 }
 
 export default function ControlBar({
@@ -35,6 +37,7 @@ export default function ControlBar({
   onHandRaise, onDeafen, onSettings, onEndCall,
   sidebarOpen, onToggleSidebar, selfViewMode, onSelfViewModeToggle,
   onSwitchAudioDevice, onSwitchVideoDevice,
+  whiteboardOpen, onToggleWhiteboard,
 }: ControlBarProps) {
   const [showMicOptions, setShowMicOptions] = useState(false)
   const [showCamOptions, setShowCamOptions] = useState(false)
@@ -121,6 +124,12 @@ export default function ControlBar({
         />
 
         <div className="w-px h-6 bg-zinc-800 mx-1" />
+        <ControlButton
+          label="Whiteboard"
+          icon={PenTool}
+          active={whiteboardOpen}
+          onClick={onToggleWhiteboard}
+        />
         <ControlButton
           label="Toggle Sidebar"
           icon={sidebarOpen ? PanelRightClose : PanelRight}

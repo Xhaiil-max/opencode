@@ -7,8 +7,11 @@ import {
 } from "livekit-client";
 import type { User, ChatMessage, Stats, Keybind, HostSettings } from "../types";
 import { sounds } from "../utils/sounds";
+import { getUserColor } from "../utils/colors";
+import type { ScreenShareSettings } from "../utils/screenShare";
+import { parseResolution } from "../utils/screenShare";
 
-const TOKEN_URL = "https://connect-token.kadvabh.workers.dev";
+const TOKEN_URL = import.meta.env.VITE_TOKEN_URL || "https://connect-token.kadvabh.workers.dev";
 
 const DEFAULT_KEYBINDS: Keybind[] = [
   { id: "toggle-mic", label: "Toggle Mic", keys: "Ctrl+Shift+M" },
@@ -26,9 +29,10 @@ const DEFAULT_HOST_SETTINGS: HostSettings = {
 interface UseLiveKitOptions {
   username: string;
   roomName: string;
+  isHostCreator?: boolean;
 }
 
-function participantToUser(participant: Participant, hostUsername: string): User {
+function participantToUser(participant: Participant, hostIdentity: string): User {
   return {
     id: participant.identity,
     name: participant.name || participant.identity,
@@ -36,31 +40,43 @@ function participantToUser(participant: Participant, hostUsername: string): User
     camOn: participant.isCameraEnabled,
     handRaised: false,
     isSharing: participant.isScreenShareEnabled,
-    isSpeaking: false,
+    isSpeaking: participant.isSpeaking,
+    audioLevel: Math.round((participant.audioLevel ?? 0) * 100),
     volume: 80,
     localVideoDisabled: false,
     localScreenshareDisabled: false,
-    isHost: participant.identity === hostUsername,
+    isHost: participant.identity === hostIdentity,
+    color: getUserColor(participant.identity),
   };
 }
 
-function syncUserFromParticipant(prev: User[], participant: Participant, hostUsername: string): User[] {
+function syncUserFromParticipant(prev: User[], participant: Participant, hostIdentity: string, localConnectionQuality: number): User[] {
   const identity = participant.identity;
   const existing = prev.find((u) => u.id === identity);
+  // Use local connection quality for local participant, otherwise keep existing or default to good
+  const isLocal = participant.isLocal || false;
+  const connectionQuality = isLocal ? localConnectionQuality : (existing?.connectionQuality ?? 5);
   const updated = {
-    ...(existing ?? participantToUser(participant, hostUsername)),
+    ...(existing ?? participantToUser(participant, hostIdentity)),
     micOn: participant.isMicrophoneEnabled,
     camOn: participant.isCameraEnabled,
     isSharing: participant.isScreenShareEnabled,
     handRaised: existing?.handRaised ?? false,
+    isSpeaking: participant.isSpeaking,
+    audioLevel: Math.round((participant.audioLevel ?? 0) * 100),
+    isHost: identity === hostIdentity,
+    connectionQuality,
   };
   if (!existing) return [...prev, updated];
   return prev.map((u) => (u.id === identity ? updated : u));
 }
 
-export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
+export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiveKitOptions) {
   const roomRef = useRef<Room | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
+  const [hostIdentity, setHostIdentity] = useState<string>(isHostCreator ? username : "");
+  const isHostCreatorRef = useRef(isHostCreator);
+  isHostCreatorRef.current = isHostCreator;
   const [connectionState, setConnectionState] = useState<
     "disconnected" | "connecting" | "connected"
   >("disconnected");
@@ -77,7 +93,11 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
   const [hostSettings, setHostSettings] = useState<HostSettings>(DEFAULT_HOST_SETTINGS);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [micGain, setMicGain] = useState(100);
   const sentMessageIds = useRef<Set<string>>(new Set());
+  const hostIdentityRef = useRef(hostIdentity);
+  hostIdentityRef.current = hostIdentity;
+  const connectionQualityRef = useRef(5);
 
   const publishData = useCallback(async (payload: object) => {
     const room = roomRef.current;
@@ -85,6 +105,11 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
     const data = new TextEncoder().encode(JSON.stringify(payload));
     await room.localParticipant.publishData(data, { reliable: true });
   }, []);
+
+  const announceHost = useCallback(async () => {
+    if (!isHostCreatorRef.current || !hostIdentityRef.current) return;
+    await publishData({ type: "hostIdentity", identity: hostIdentityRef.current });
+  }, [publishData]);
 
   const refreshDevices = useCallback(async () => {
     try {
@@ -97,8 +122,8 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
   }, []);
 
   const addOrUpdateUser = useCallback((participant: Participant) => {
-    setUsers((prev) => syncUserFromParticipant(prev, participant, username));
-  }, [username]);
+    setUsers((prev) => syncUserFromParticipant(prev, participant, hostIdentityRef.current, connectionQualityRef.current));
+  }, []);
 
   const removeUser = useCallback((identity: string) => {
     setUsers((prev) => prev.filter((u) => u.id !== identity));
@@ -124,6 +149,8 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
                 sender,
                 content: message.message,
                 timestamp: message.timestamp || Date.now(),
+                isImage: message.isImage,
+                imageData: message.imageData,
               },
             ];
           });
@@ -145,6 +172,13 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
           }
         }
 
+        if (message.type === "hostIdentity" && message.identity) {
+          setHostIdentity((prev) => prev || message.identity);
+          setUsers((prev) =>
+            prev.map((u) => ({ ...u, isHost: u.id === message.identity }))
+          );
+        }
+
         if (message.type === "hostSettings") {
           setHostSettings(message.settings);
         }
@@ -161,6 +195,14 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
           if (message.action === "disableCameras") {
             local.setCameraEnabled(false);
             setIsCamOn(false);
+          }
+          if (message.action.startsWith("lowerHand:")) {
+            const targetId = message.action.split(":")[1];
+            if (targetId === local.identity) {
+              setIsRaisedHand(false);
+              setUsers((prev) => prev.map((u) => (u.id === targetId ? { ...u, handRaised: false } : u)));
+              sounds.handLower();
+            }
           }
         }
       } catch (e) {
@@ -199,6 +241,7 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
           if (p.identity !== room.localParticipant.identity) {
             sounds.participantJoin();
           }
+          void announceHost();
         });
         room.on(RoomEvent.ParticipantDisconnected, (p) => removeUser(p.identity));
 
@@ -214,6 +257,7 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
               )
             );
             if (participant.identity === room.localParticipant.identity) setIsSharing(true);
+            else sounds.screenShareStart();
           }
         });
 
@@ -226,6 +270,7 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
               )
             );
             if (participant.identity === room.localParticipant.identity) setIsSharing(false);
+            else sounds.screenShareStop();
           }
         });
 
@@ -245,7 +290,12 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
           addOrUpdateUser(local);
         });
 
+        let levelInterval: ReturnType<typeof setInterval> | undefined;
+        let statsInterval: ReturnType<typeof setInterval> | undefined;
+
         room.on(RoomEvent.Disconnected, () => {
+          if (levelInterval) clearInterval(levelInterval);
+          if (statsInterval) clearInterval(statsInterval);
           setConnectionState("disconnected");
           setUsers([]);
           setStats(null);
@@ -258,13 +308,99 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
         });
 
         room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+          const speakerIds = new Set(speakers.map((s) => s.identity));
           setUsers((prev) =>
             prev.map((u) => ({
               ...u,
-              isSpeaking: speakers.some((s) => s.identity === u.id),
+              isSpeaking: speakerIds.has(u.id),
+              audioLevel: (() => {
+                const p =
+                  u.id === room.localParticipant.identity
+                    ? room.localParticipant
+                    : room.remoteParticipants.get(u.id);
+                return p ? Math.round((p.audioLevel ?? 0) * 100) : u.audioLevel;
+              })(),
             }))
           );
         });
+
+        levelInterval = setInterval(() => {
+          const all: Participant[] = [
+            room.localParticipant,
+            ...Array.from(room.remoteParticipants.values()),
+          ];
+          setUsers((prev) =>
+            prev.map((u) => {
+              const p = all.find((x) => x.identity === u.id);
+              if (!p) return u;
+              return {
+                ...u,
+                isSpeaking: p.isSpeaking,
+                audioLevel: Math.round((p.audioLevel ?? 0) * 100),
+              };
+            })
+          );
+        }, 150);
+
+        statsInterval = setInterval(async () => {
+          try {
+            const local = room.localParticipant;
+            const micPub = local.getTrackPublication(Track.Source.Microphone);
+            const camPub = local.getTrackPublication(Track.Source.Camera);
+            const ssPub = local.getTrackPublication(Track.Source.ScreenShare);
+
+            const camSettings = camPub?.track?.mediaStreamTrack?.getSettings();
+            const ssSettings = ssPub?.track?.mediaStreamTrack?.getSettings();
+
+            let audioPacketLoss = 0;
+            let audioJitter = 0;
+            let audioLatency = 0;
+            let videoPacketLoss = 0;
+            let videoJitter = 0;
+
+            const micTrack = micPub?.track;
+            if (micTrack && "getRTCStatsReport" in micTrack) {
+              const report = await (micTrack as { getRTCStatsReport: () => Promise<RTCStatsReport> }).getRTCStatsReport();
+              report.forEach((stat) => {
+                if (stat.type === "inbound-rtp" && stat.kind === "audio") {
+                  audioPacketLoss = Math.round((stat.packetsLost ?? 0) / Math.max(1, (stat.packetsReceived ?? 0) + (stat.packetsLost ?? 0)) * 1000) / 10;
+                  audioJitter = Math.round((stat.jitter ?? 0) * 1000);
+                }
+                if (stat.type === "candidate-pair" && stat.state === "succeeded") {
+                  audioLatency = Math.round(stat.currentRoundTripTime ? stat.currentRoundTripTime * 1000 : 0);
+                }
+              });
+            }
+
+            setStats({
+              audio: {
+                inputLevel: Math.round((local.audioLevel ?? 0) * 100),
+                outputLevel: Math.round((local.audioLevel ?? 0) * 100),
+                packetLoss: audioPacketLoss,
+                jitter: audioJitter,
+                latency: audioLatency,
+              },
+              video: {
+                width: camSettings?.width ?? 0,
+                height: camSettings?.height ?? 0,
+                frameRate: camSettings?.frameRate ?? 0,
+                packetLoss: videoPacketLoss,
+                jitter: videoJitter,
+              },
+              screenShare: {
+                width: ssSettings?.width ?? 0,
+                height: ssSettings?.height ?? 0,
+                frameRate: ssSettings?.frameRate ?? 0,
+                packetLoss: 0,
+                jitter: 0,
+              },
+              connectionQuality: (room as unknown as { connectionQuality: number }).connectionQuality,
+            });
+            connectionQualityRef.current = (room as unknown as { connectionQuality: number }).connectionQuality;
+          } catch {
+            // Stats collection is best-effort
+          }
+        }, 2000);
 
         room.on(RoomEvent.DataReceived, handleDataMessage);
 
@@ -281,6 +417,11 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
         addOrUpdateUser(room.localParticipant);
         room.remoteParticipants.forEach((p) => addOrUpdateUser(p));
 
+        if (isHostCreator) {
+          setHostIdentity(username);
+          await announceHost();
+        }
+
         await refreshDevices();
         sounds.join();
         setConnectionState("connected");
@@ -289,7 +430,7 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
         setConnectionState("disconnected");
       }
     },
-    [roomName, username, addOrUpdateUser, removeUser, handleDataMessage, refreshDevices]
+    [roomName, username, isHostCreator, addOrUpdateUser, removeUser, handleDataMessage, refreshDevices, announceHost]
   );
 
   const disconnect = useCallback(() => {
@@ -314,9 +455,17 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
       if (hostSettings.disableChat) return;
 
       try {
+        // Check if message contains an image
+        const imageMatch = message.match(/\[img:([^\]]+)\]/)
+        const isImage = !!imageMatch
+        const imageData = imageMatch ? imageMatch[1] : undefined
+        const cleanMessage = isImage ? message.replace(/\[img:[^\]]+\]/, '').trim() : message
+
         const chatMessage = {
           type: "chat",
-          message,
+          message: cleanMessage || (isImage ? '[Image]' : ''),
+          imageData,
+          isImage,
           timestamp: Date.now(),
           id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         };
@@ -330,8 +479,10 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
           {
             id: chatMessage.id,
             sender: username,
-            content: message,
+            content: cleanMessage || (isImage ? '' : message),
             timestamp: chatMessage.timestamp,
+            isImage,
+            imageData,
           },
         ]);
       } catch (err) {
@@ -368,13 +519,26 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
     );
   }, [isCamOn]);
 
-  const startScreenShare = useCallback(async () => {
+  const startScreenShare = useCallback(async (settings?: ScreenShareSettings) => {
     const room = roomRef.current;
     if (!room) return;
+
+    const { width, height } = settings
+      ? parseResolution(settings.resolution)
+      : { width: 1920, height: 1080 };
+    const frameRate = settings?.frameRate ?? 30;
+    const includeAudio = settings?.includeAudio ?? true;
+
     await room.localParticipant.setScreenShareEnabled(true, {
-      audio: true,
+      audio: includeAudio,
+      systemAudio: includeAudio ? "include" : "exclude",
+      surfaceSwitching: "include",
+      selfBrowserSurface: "exclude",
+      resolution: { width, height, frameRate },
+      contentHint: "motion",
     });
     setIsSharing(true);
+    sounds.screenShareStart();
   }, []);
 
   const stopScreenShare = useCallback(async () => {
@@ -382,6 +546,7 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
     if (!room) return;
     await room.localParticipant.setScreenShareEnabled(false);
     setIsSharing(false);
+    sounds.screenShareStop();
   }, []);
 
   const toggleHandRaise = useCallback(async () => {
@@ -418,10 +583,11 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
 
   const updateHostSettings = useCallback(
     async (settings: HostSettings) => {
+      if (!isHostCreatorRef.current && hostIdentityRef.current !== username) return;
       setHostSettings(settings);
       await publishData({ type: "hostSettings", settings });
     },
-    [publishData]
+    [publishData, username]
   );
 
   const broadcastHostAction = useCallback(
@@ -430,6 +596,15 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
     },
     [publishData]
   );
+
+  const setUserColor = useCallback((color: string) => {
+    setUserColor(color);
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === username ? { ...u, color } : u
+      )
+    );
+  }, [username]);
 
   return {
     room,
@@ -446,8 +621,12 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
     stats,
     keybinds,
     hostSettings,
+    hostIdentity,
+    isLocalHost: hostIdentity === username,
     audioDevices,
     videoDevices,
+    micGain,
+    setMicGain,
     setKeybinds,
     setIsDeafened,
     connect,
@@ -463,5 +642,6 @@ export function useLiveKit({ username, roomName }: UseLiveKitOptions) {
     updateHostSettings,
     broadcastHostAction,
     refreshDevices,
+    setUserColor,
   };
 }

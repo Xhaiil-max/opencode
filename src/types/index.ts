@@ -7,10 +7,13 @@ export interface User {
   handRaised: boolean
   isSharing: boolean
   isSpeaking: boolean
+  audioLevel: number
   volume: number
   localVideoDisabled: boolean
   localScreenshareDisabled: boolean
   isHost: boolean
+  color: string
+  connectionQuality?: number // 0-5, higher is better
 }
 
 export interface ChatMessage {
@@ -20,6 +23,7 @@ export interface ChatMessage {
   timestamp: number
   isImage?: boolean
   isLink?: boolean
+  imageData?: string // base64 encoded image
 }
 
 export type ViewState = 'landing' | 'meeting' | 'screenshare-modal'
@@ -27,6 +31,8 @@ export type ViewState = 'landing' | 'meeting' | 'screenshare-modal'
 export type SelfViewMode = 'grid' | 'floating'
 
 export type GridPreset = 'tiled' | 'spotlight' | 'speaker' | 'sidebar'
+
+export type SidebarTab = 'participants' | 'chat' | 'tools'
 
 export type TabName = 'audio' | 'video' | 'keybinds' | 'general' | 'stats'
 
@@ -65,6 +71,7 @@ export interface Stats {
     packetLoss: number
     jitter: number
   }
+  connectionQuality: number // 0-5, higher is better
 }
 
 export interface HostSettings {

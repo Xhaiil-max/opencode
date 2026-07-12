@@ -1,32 +1,79 @@
-import { useState, useEffect } from 'react'
-import type { SelfViewMode, GridPreset } from '../types'
+import { useState, useEffect, useRef } from 'react'
+import { Copy, Check, Wifi, WifiOff, WifiHigh, MoreHorizontal, PenTool, Settings, Users, MessageSquare } from 'lucide-react'
+import type { SelfViewMode, GridPreset, SidebarTab } from '../types'
 import ControlBar from './ControlBar'
 import ParticipantTile from './ParticipantTile'
 import SelfView from './SelfView'
 import Sidebar from './Sidebar'
 import ScreenshareModal from './ScreenshareModal'
 import SettingsPanel from './SettingsPanel'
+import Whiteboard from './Whiteboard'
 import HostControlRow from './HostControlRow'
 import { useLiveKit } from '../hooks/useLiveKit'
 import { LiveKitRoomContext, LocalIdentityContext } from '../context/LiveKitContext'
+import { copyMeetingLink } from '../utils/meetingLink'
+
+function ConnectionQualityIndicator({ quality, state }: { quality: number; state: string }) {
+  // LiveKit connectionQuality is 0-5, higher is better
+  // 5 = excellent (all bars), 4 = good, 3 = fair, 2 = poor, 1 = very poor, 0 = disconnected
+  const getIcon = () => {
+    if (state !== 'connected') return <WifiOff size={14} className="text-zinc-500" />
+    if (quality >= 4.5) return <WifiHigh size={14} className="text-green-400" />
+    if (quality >= 3.5) return <Wifi size={14} className="text-green-400" />
+    if (quality >= 2.5) return <Wifi size={14} className="text-yellow-400" />
+    if (quality >= 1.5) return <Wifi size={14} className="text-orange-400" />
+    return <WifiOff size={14} className="text-red-400" />
+  }
+
+  const getText = () => {
+    if (state !== 'connected') return state.charAt(0).toUpperCase() + state.slice(1)
+    if (quality >= 4.5) return 'Excellent'
+    if (quality >= 3.5) return 'Good'
+    if (quality >= 2.5) return 'Fair'
+    if (quality >= 1.5) return 'Poor'
+    return 'Lost'
+  }
+
+  const getTextColor = () => {
+    if (state !== 'connected') return 'text-zinc-500'
+    if (quality >= 3.5) return 'text-green-400'
+    if (quality >= 2.5) return 'text-yellow-400'
+    if (quality >= 1.5) return 'text-orange-400'
+    return 'text-red-400'
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      {getIcon()}
+      <span className={`text-xs font-medium ${getTextColor()}`}>{getText()}</span>
+    </div>
+  )
+}
 
 interface MeetingRoomProps {
   username: string
   roomName: string
+  isHost: boolean
   onLeave: () => void
 }
 
-export default function MeetingRoom({ username, roomName, onLeave }: MeetingRoomProps) {
-  const lk = useLiveKit({ username, roomName })
+export default function MeetingRoom({ username, roomName, isHost, onLeave }: MeetingRoomProps) {
+  const lk = useLiveKit({ username, roomName, isHostCreator: isHost })
 
   const [selfViewMode, setSelfViewMode] = useState<SelfViewMode>('grid')
   const [gridPreset, setGridPreset] = useState<GridPreset>('tiled')
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [sidebarTab, setSidebarTab] = useState<'participants' | 'chat'>('participants')
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('participants')
   const [showSettings, setShowSettings] = useState(false)
   const [showScreenshare, setShowScreenshare] = useState(false)
   const [showHostControls, setShowHostControls] = useState(false)
-  const [isHost] = useState(true)
+  const [linkCopied, setLinkCopied] = useState(false)
+  const [showWhiteboard, setShowWhiteboard] = useState(false)
+  const [showUnifiedMenu, setShowUnifiedMenu] = useState(false)
+  const unifiedMenuRef = useRef<HTMLDivElement>(null)
+
+  const localUser = lk.users.find(u => u.id === username)
+  const isSpeaking = localUser?.isSpeaking ?? false
 
   useEffect(() => {
     const init = async () => {
@@ -42,6 +89,18 @@ export default function MeetingRoom({ username, roomName, onLeave }: MeetingRoom
     return () => lk.disconnect()
   }, [])
 
+  // Click outside to close unified menu
+  useEffect(() => {
+    if (!showUnifiedMenu) return
+    const handleClick = (e: MouseEvent) => {
+      if (unifiedMenuRef.current && !unifiedMenuRef.current.contains(e.target as Node)) {
+        setShowUnifiedMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showUnifiedMenu, unifiedMenuRef])
+
   const handleLeave = () => { lk.disconnect(); onLeave() }
 
   const remoteUsers = lk.users.filter(u => u.id !== username)
@@ -53,6 +112,14 @@ export default function MeetingRoom({ username, roomName, onLeave }: MeetingRoom
   })
 
   const spotlightUser = sortedRemote.find(u => u.isSharing) || sortedRemote.find(u => u.isSpeaking) || sortedRemote[0]
+
+  const handleCopyLink = async () => {
+    const ok = await copyMeetingLink(roomName)
+    if (ok) {
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+    }
+  }
 
   const handleHostSettingChange = (key: keyof typeof lk.hostSettings, value: boolean) => {
     const next = { ...lk.hostSettings, [key]: value }
@@ -99,7 +166,7 @@ export default function MeetingRoom({ username, roomName, onLeave }: MeetingRoom
               <ParticipantTile key={u.id} user={u} isDeafened={lk.isDeafened} />
             ))}
             {selfViewMode === 'grid' && (
-              <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} />
+              <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} isSpeaking={isSpeaking} />
             )}
           </div>
         </>
@@ -107,18 +174,23 @@ export default function MeetingRoom({ username, roomName, onLeave }: MeetingRoom
     }
 
     if (gridPreset === 'sidebar') {
+      // Filter out spotlightUser from the grid to avoid duplicate rendering
+      const gridUsers = spotlightUser 
+        ? sortedRemote.filter(u => u.id !== spotlightUser.id)
+        : sortedRemote
+      
       return (
         <>
           <div className="grid grid-cols-2 gap-2 content-start">
-            {sortedRemote.map(u => <ParticipantTile key={u.id} user={u} isDeafened={lk.isDeafened} />)}
+            {gridUsers.map(u => <ParticipantTile key={u.id} user={u} isDeafened={lk.isDeafened} />)}
             {selfViewMode === 'grid' && (
-              <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} />
+              <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} isSpeaking={isSpeaking} />
             )}
           </div>
           {spotlightUser ? (
             <ParticipantTile user={spotlightUser} isDeafened={lk.isDeafened} />
           ) : selfViewMode === 'grid' ? null : (
-            <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} />
+            <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} isSpeaking={isSpeaking} />
           )}
         </>
       )
@@ -128,7 +200,7 @@ export default function MeetingRoom({ username, roomName, onLeave }: MeetingRoom
       <>
         {sortedRemote.map(u => <ParticipantTile key={u.id} user={u} isDeafened={lk.isDeafened} />)}
         {selfViewMode === 'grid' && (
-          <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} />
+          <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} isSpeaking={isSpeaking} />
         )}
       </>
     )
@@ -144,21 +216,63 @@ export default function MeetingRoom({ username, roomName, onLeave }: MeetingRoom
                 Meeting: <code className="text-zinc-200 font-mono">{roomName}</code>
               </span>
               <div className="flex items-center gap-2">
-                {isHost && (
+                <button
+                  onClick={handleCopyLink}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors text-xs font-medium"
+                  title="Copy meeting link"
+                >
+                  {linkCopied ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+                  {linkCopied ? 'Copied!' : 'Copy Link'}
+                </button>
+
+                {/* Unified Menu Dropdown */}
+                <div className="relative" ref={unifiedMenuRef}>
                   <button
-                    onClick={() => setShowHostControls(!showHostControls)}
-                    className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors text-xs font-medium"
+                    onClick={() => setShowUnifiedMenu(!showUnifiedMenu)}
+                    className="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors text-zinc-400 hover:text-zinc-100"
+                    title="More options"
+                    aria-label="More options"
                   >
-                    Host Controls
+                    <MoreHorizontal size={20} />
                   </button>
-                )}
-                <span className={`text-xs ${lk.connectionState === 'connected' ? 'text-green-400' : 'text-zinc-500'}`}>
-                  {lk.connectionState}
-                </span>
+
+                  {showUnifiedMenu && (
+                    <div className="absolute right-0 top-full mt-2 z-30 bg-zinc-900 border border-zinc-700 rounded-xl p-2 shadow-2xl min-w-[180px] animate-fade-in">
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer" onClick={() => { setShowWhiteboard(!showWhiteboard); setShowUnifiedMenu(false); }}>
+                        <PenTool size={18} className="text-indigo-400" />
+                        <span className="text-sm font-medium">Whiteboard</span>
+                        {showWhiteboard && <span className="ml-auto text-xs text-green-400">Open</span>}
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer" onClick={() => { setShowSettings(true); setShowUnifiedMenu(false); }}>
+                        <Settings size={18} className="text-indigo-400" />
+                        <span className="text-sm font-medium">Settings</span>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer" onClick={() => { setSidebarTab('participants'); setSidebarOpen(true); setShowUnifiedMenu(false); }}>
+                        <Users size={18} className="text-indigo-400" />
+                        <span className="text-sm font-medium">Participants</span>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer" onClick={() => { setSidebarTab('chat'); setSidebarOpen(true); setShowUnifiedMenu(false); }}>
+                        <MessageSquare size={18} className="text-indigo-400" />
+                        <span className="text-sm font-medium">Chat</span>
+                      </div>
+                      {lk.isLocalHost && (
+                        <div className="border-t border-zinc-700 my-1" />
+                      )}
+                      {lk.isLocalHost && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer" onClick={() => { setShowHostControls(!showHostControls); setShowUnifiedMenu(false); }}>
+                          <Settings size={18} className="text-orange-400" />
+                          <span className="text-sm font-medium text-orange-400">Host Controls</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <ConnectionQualityIndicator quality={lk.stats?.connectionQuality ?? 0} state={lk.connectionState} />
               </div>
             </div>
 
-            {showHostControls && isHost && (
+            {showHostControls && lk.isLocalHost && (
               <div className="absolute top-10 right-4 z-30 bg-zinc-900 border border-zinc-700 rounded-xl p-4 w-72 shadow-2xl">
                 <h3 className="text-sm font-medium mb-3">Host Controls</h3>
                 <div className="flex flex-col gap-2">
@@ -201,7 +315,7 @@ export default function MeetingRoom({ username, roomName, onLeave }: MeetingRoom
             </div>
 
             {selfViewMode === 'floating' && (
-              <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} floating />
+              <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} isSpeaking={isSpeaking} floating />
             )}
 
             {lk.isSharing && (
@@ -238,6 +352,8 @@ export default function MeetingRoom({ username, roomName, onLeave }: MeetingRoom
               onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
               onSwitchAudioDevice={lk.switchAudioDevice}
               onSwitchVideoDevice={lk.switchVideoDevice}
+              whiteboardOpen={showWhiteboard}
+              onToggleWhiteboard={() => setShowWhiteboard(!showWhiteboard)}
             />
           </div>
 
@@ -249,8 +365,11 @@ export default function MeetingRoom({ username, roomName, onLeave }: MeetingRoom
               onSendMessage={lk.sendMessage}
               tab={sidebarTab}
               onTabChange={setSidebarTab}
-              isHost={isHost}
               chatDisabled={lk.hostSettings.disableChat}
+              isLocalHost={lk.isLocalHost}
+              onBroadcastHostAction={lk.broadcastHostAction}
+              onToggleWhiteboard={() => setShowWhiteboard(!showWhiteboard)}
+              whiteboardOpen={showWhiteboard}
             />
           )}
 
@@ -264,6 +383,9 @@ export default function MeetingRoom({ username, roomName, onLeave }: MeetingRoom
             />
           )}
 
+          {showWhiteboard && (
+            <Whiteboard isOpen={showWhiteboard} onClose={() => setShowWhiteboard(false)} />
+          )}
           {showSettings && (
             <SettingsPanel
               onClose={() => setShowSettings(false)}
@@ -277,6 +399,14 @@ export default function MeetingRoom({ username, roomName, onLeave }: MeetingRoom
               videoDevices={lk.videoDevices}
               onSwitchAudioDevice={lk.switchAudioDevice}
               onSwitchVideoDevice={lk.switchVideoDevice}
+              room={lk.room}
+              micOn={lk.isMicOn}
+              micGain={lk.micGain}
+              onMicGainChange={lk.setMicGain}
+              stats={lk.stats}
+              camOn={lk.isCamOn}
+              userColor={lk.users.find(u => u.id === username)?.color || '#6366f1'}
+              onUserColorChange={lk.setUserColor}
             />
           )}
         </div>

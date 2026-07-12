@@ -4,11 +4,12 @@ import { X } from 'lucide-react'
 interface JoinModalProps {
   onClose: () => void
   onConfirm: (name: string, meetingId: string, passcode: string) => void
+  initialMeetingId?: string
 }
 
-export default function JoinModal({ onClose, onConfirm }: JoinModalProps) {
+export default function JoinModal({ onClose, onConfirm, initialMeetingId }: JoinModalProps) {
   const [username, setUsername] = useState('')
-  const [meetingId, setMeetingId] = useState('')
+  const [meetingId, setMeetingId] = useState(initialMeetingId ?? '')
   const [passcode, setPasscode] = useState('')
 
   const handleSubmit = (e: React.FormEvent) => {

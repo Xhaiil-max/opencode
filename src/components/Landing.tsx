@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, LogIn, Shield } from 'lucide-react'
 import JoinModal from './JoinModal'
 import CreateModal from './CreateModal'
@@ -6,11 +6,16 @@ import CreateModal from './CreateModal'
 interface LandingProps {
   onCreateMeeting: (name: string, meetingId: string, passcode: string) => void
   onJoinMeeting: (name: string, id: string, passcode: string) => void
+  initialRoomId?: string | null
 }
 
-export default function Landing({ onCreateMeeting, onJoinMeeting }: LandingProps) {
+export default function Landing({ onCreateMeeting, onJoinMeeting, initialRoomId }: LandingProps) {
   const [showJoin, setShowJoin] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
+
+  useEffect(() => {
+    if (initialRoomId) setShowJoin(true)
+  }, [initialRoomId])
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-6">
@@ -39,8 +44,19 @@ export default function Landing({ onCreateMeeting, onJoinMeeting }: LandingProps
         </button>
       </div>
 
-          {showJoin && <JoinModal onClose={() => setShowJoin(false)} onConfirm={(name, id, passcode) => { setShowJoin(false); onJoinMeeting(name, id, passcode) }} />}
-          {showCreate && <CreateModal onClose={() => setShowCreate(false)} onConfirm={(name, id, passcode) => { setShowCreate(false); onCreateMeeting(name, id, passcode) }} />}
+      {showJoin && (
+        <JoinModal
+          onClose={() => setShowJoin(false)}
+          onConfirm={(name, id, passcode) => { setShowJoin(false); onJoinMeeting(name, id, passcode) }}
+          initialMeetingId={initialRoomId ?? undefined}
+        />
+      )}
+      {showCreate && (
+        <CreateModal
+          onClose={() => setShowCreate(false)}
+          onConfirm={(name, id, passcode) => { setShowCreate(false); onCreateMeeting(name, id, passcode) }}
+        />
+      )}
     </div>
   )
 }
