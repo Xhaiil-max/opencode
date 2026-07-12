@@ -79,6 +79,8 @@ export interface HostSettings {
   muteEveryone: boolean
   disableCameras: boolean
   chatSlowdown: boolean
+  disableWhiteboard: boolean
+  disableWhiteboardDrawing: boolean
 }
 
 export interface ScreenshareTarget {

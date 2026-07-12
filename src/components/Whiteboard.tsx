@@ -10,9 +10,11 @@ import { WHITEBOARD_COLORS, WHITEBOARD_WIDTHS, type WhiteboardStroke } from '../
 interface WhiteboardProps {
   isOpen: boolean
   onClose: () => void
+  disableWhiteboardDrawing?: boolean
+  isLocalHost?: boolean
 }
 
-export default function Whiteboard({ isOpen, onClose }: WhiteboardProps) {
+export default function Whiteboard({ isOpen, onClose, disableWhiteboardDrawing, isLocalHost }: WhiteboardProps) {
   const localIdentity = useLocalIdentity()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [strokes, setStrokes] = useState<WhiteboardStroke[]>([])
@@ -23,6 +25,8 @@ export default function Whiteboard({ isOpen, onClose }: WhiteboardProps) {
   const [isDrawing, setIsDrawing] = useState(false)
   const [minimized, setMinimized] = useState(false)
   const [floating, setFloating] = useState(false)
+
+  const canDraw = isLocalHost || !disableWhiteboardDrawing
 
   const getCanvasPoint = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current
@@ -37,6 +41,7 @@ export default function Whiteboard({ isOpen, onClose }: WhiteboardProps) {
   }, [])
 
   const startDrawing = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    if (!canDraw) return
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
@@ -53,10 +58,10 @@ export default function Whiteboard({ isOpen, onClose }: WhiteboardProps) {
     }
     setCurrentStroke(newStroke)
     setIsDrawing(true)
-  }, [tool, color, width, localIdentity, getCanvasPoint])
+  }, [tool, color, width, localIdentity, getCanvasPoint, canDraw])
 
   const draw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing || !currentStroke) return
+    if (!isDrawing || !currentStroke || !canDraw) return
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
@@ -74,7 +79,7 @@ export default function Whiteboard({ isOpen, onClose }: WhiteboardProps) {
     ctx.moveTo(currentStroke.points[currentStroke.points.length - 1].x, currentStroke.points[currentStroke.points.length - 1].y)
     ctx.lineTo(point.x, point.y)
     ctx.stroke()
-  }, [isDrawing, currentStroke, getCanvasPoint])
+  }, [isDrawing, currentStroke, getCanvasPoint, canDraw])
 
   const stopDrawing = useCallback(() => {
     if (!currentStroke) return

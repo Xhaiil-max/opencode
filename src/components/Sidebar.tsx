@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import type { User, ChatMessage, SidebarTab } from '../types'
+import type { User, ChatMessage, SidebarTab, HostSettings } from '../types'
 import { Mic, MicOff, Video, VideoOff, MonitorUp, MessageSquare, Users, MoreVertical, UserX, VolumeX, VideoOff as VideoSlash, Smile, Image, PenTool, Wifi, WifiOff, WifiHigh, Hand } from 'lucide-react'
 import { AudioLevelBar } from './AudioVisualizer'
 
@@ -18,11 +18,14 @@ interface SidebarProps {
   onBroadcastHostAction: (action: string) => void
   onToggleWhiteboard: () => void
   whiteboardOpen: boolean
+  hostSettings: HostSettings
+  onUpdateHostSettings: (settings: HostSettings) => void
 }
 
 export default function Sidebar({
   users, localIdentity, messages, tab, onTabChange, chatDisabled, onSendMessage,
-  isLocalHost, onBroadcastHostAction, onToggleWhiteboard, whiteboardOpen
+  isLocalHost, onBroadcastHostAction, onToggleWhiteboard, whiteboardOpen,
+  hostSettings, onUpdateHostSettings
 }: SidebarProps) {
   const [input, setInput] = useState('')
 
@@ -57,7 +60,13 @@ export default function Sidebar({
         ) : tab === 'chat' ? (
           <ChatTab messages={messages} onSend={send} input={input} onInputChange={setInput} disabled={chatDisabled} />
         ) : (
-          <ToolsTab onToggleWhiteboard={onToggleWhiteboard} whiteboardOpen={whiteboardOpen} />
+          <ToolsTab 
+            onToggleWhiteboard={onToggleWhiteboard} 
+            whiteboardOpen={whiteboardOpen}
+            isLocalHost={isLocalHost}
+            hostSettings={hostSettings}
+            onUpdateHostSettings={onUpdateHostSettings}
+          />
         )}
       </div>
     </div>
@@ -382,7 +391,19 @@ function ChatTab({
   )
 }
 
-function ToolsTab({ onToggleWhiteboard, whiteboardOpen }: { onToggleWhiteboard: () => void; whiteboardOpen: boolean }) {
+function ToolsTab({ 
+  onToggleWhiteboard, 
+  whiteboardOpen,
+  isLocalHost,
+  hostSettings,
+  onUpdateHostSettings
+}: { 
+  onToggleWhiteboard: () => void; 
+  whiteboardOpen: boolean;
+  isLocalHost: boolean;
+  hostSettings: HostSettings;
+  onUpdateHostSettings: (settings: HostSettings) => void;
+}) {
   return (
     <div className="flex-1 min-h-0 p-4">
       <div className="space-y-4">
@@ -403,6 +424,30 @@ function ToolsTab({ onToggleWhiteboard, whiteboardOpen }: { onToggleWhiteboard: 
             </div>
             {whiteboardOpen && <span className="text-xs text-emerald-400">Active</span>}
           </button>
+          
+          {isLocalHost && whiteboardOpen && (
+            <div className="mt-3 pt-3 border-t border-zinc-700/50 space-y-2">
+              <h5 className="text-xs font-medium text-zinc-400">Host Controls</h5>
+              <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={hostSettings.disableWhiteboard}
+                  onChange={(e) => onUpdateHostSettings({ ...hostSettings, disableWhiteboard: e.target.checked })}
+                  className="w-4 h-4 accent-indigo-500 rounded border-zinc-600 bg-zinc-800"
+                />
+                Prevent participants from starting whiteboard
+              </label>
+              <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={hostSettings.disableWhiteboardDrawing}
+                  onChange={(e) => onUpdateHostSettings({ ...hostSettings, disableWhiteboardDrawing: e.target.checked })}
+                  className="w-4 h-4 accent-indigo-500 rounded border-zinc-600 bg-zinc-800"
+                />
+                Prevent participants from drawing on whiteboard
+              </label>
+            </div>
+          )}
         </div>
         
         <div className="p-3 bg-zinc-800/50 border border-zinc-700/50 rounded-xl">

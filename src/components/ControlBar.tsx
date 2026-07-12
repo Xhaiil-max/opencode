@@ -28,6 +28,8 @@ interface ControlBarProps {
   onSwitchVideoDevice: (deviceId: string) => void
   whiteboardOpen: boolean
   onToggleWhiteboard: () => void
+  disableWhiteboard?: boolean
+  isLocalHost?: boolean
 }
 
 export default function ControlBar({
@@ -38,9 +40,12 @@ export default function ControlBar({
   sidebarOpen, onToggleSidebar, selfViewMode, onSelfViewModeToggle,
   onSwitchAudioDevice, onSwitchVideoDevice,
   whiteboardOpen, onToggleWhiteboard,
+  disableWhiteboard, isLocalHost,
 }: ControlBarProps) {
   const [showMicOptions, setShowMicOptions] = useState(false)
   const [showCamOptions, setShowCamOptions] = useState(false)
+
+  const canToggleWhiteboard = isLocalHost || !disableWhiteboard
 
   return (
     <div className="flex items-center justify-center gap-1.5 p-3 shrink-0">
@@ -129,6 +134,7 @@ export default function ControlBar({
           icon={PenTool}
           active={whiteboardOpen}
           onClick={onToggleWhiteboard}
+          disabled={!canToggleWhiteboard}
         />
         <ControlButton
           label="Toggle Sidebar"
@@ -147,12 +153,14 @@ export default function ControlBar({
   )
 }
 
-function ControlButton({ label, icon: Icon, active, danger, onClick }: { label: string; icon: React.ComponentType<{ size?: number }>; active: boolean; danger?: boolean; onClick: () => void }) {
+function ControlButton({ label, icon: Icon, active, danger, onClick, disabled }: { label: string; icon: React.ComponentType<{ size?: number }>; active: boolean; danger?: boolean; onClick: () => void; disabled?: boolean }) {
   return (
     <button
       onClick={onClick}
       title={label}
+      disabled={disabled}
       className={`p-2.5 rounded-xl transition-colors ${
+        disabled ? 'opacity-50 cursor-not-allowed' :
         active ? 'bg-indigo-600/30 text-indigo-400' : danger ? 'text-red-400 bg-red-500/10' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
       }`}
     >

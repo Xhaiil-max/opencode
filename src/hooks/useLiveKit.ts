@@ -24,6 +24,8 @@ const DEFAULT_HOST_SETTINGS: HostSettings = {
   muteEveryone: false,
   disableCameras: false,
   chatSlowdown: false,
+  disableWhiteboard: false,
+  disableWhiteboardDrawing: false,
 };
 
 interface UseLiveKitOptions {

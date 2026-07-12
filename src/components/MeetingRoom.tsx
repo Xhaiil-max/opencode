@@ -174,25 +174,21 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
     }
 
     if (gridPreset === 'sidebar') {
-      // Filter out spotlightUser from the grid to avoid duplicate rendering
-      const gridUsers = spotlightUser 
-        ? sortedRemote.filter(u => u.id !== spotlightUser.id)
-        : sortedRemote
-      
+      // In sidebar mode, only show spotlight user in main area
+      // Sidebar handles the full participant list to avoid duplicates
       return (
-        <>
-          <div className="grid grid-cols-2 gap-2 content-start">
-            {gridUsers.map(u => <ParticipantTile key={u.id} user={u} isDeafened={lk.isDeafened} />)}
-            {selfViewMode === 'grid' && (
-              <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} isSpeaking={isSpeaking} />
-            )}
-          </div>
-          {spotlightUser ? (
-            <ParticipantTile user={spotlightUser} isDeafened={lk.isDeafened} />
-          ) : selfViewMode === 'grid' ? null : (
-            <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} isSpeaking={isSpeaking} />
+        <div className="flex flex-col h-full overflow-hidden">
+          {spotlightUser && (
+            <div className="relative aspect-video w-full bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800 mb-4 flex-1">
+              <ParticipantTile user={spotlightUser} isCurrent={spotlightUser.id === username} isDeafened={lk.isDeafened} />
+            </div>
           )}
-        </>
+          {!spotlightUser && (
+            <div className="flex-1 flex items-center justify-center text-zinc-500">
+              <span className="text-lg">No active speaker or screen share</span>
+            </div>
+          )}
+        </div>
       )
     }
 
@@ -354,6 +350,8 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
               onSwitchVideoDevice={lk.switchVideoDevice}
               whiteboardOpen={showWhiteboard}
               onToggleWhiteboard={() => setShowWhiteboard(!showWhiteboard)}
+              disableWhiteboard={lk.hostSettings.disableWhiteboard}
+              isLocalHost={lk.isLocalHost}
             />
           </div>
 
@@ -370,6 +368,8 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
               onBroadcastHostAction={lk.broadcastHostAction}
               onToggleWhiteboard={() => setShowWhiteboard(!showWhiteboard)}
               whiteboardOpen={showWhiteboard}
+              hostSettings={lk.hostSettings}
+              onUpdateHostSettings={lk.updateHostSettings}
             />
           )}
 
@@ -384,7 +384,12 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
           )}
 
           {showWhiteboard && (
-            <Whiteboard isOpen={showWhiteboard} onClose={() => setShowWhiteboard(false)} />
+            <Whiteboard 
+              isOpen={showWhiteboard} 
+              onClose={() => setShowWhiteboard(false)}
+              disableWhiteboardDrawing={lk.hostSettings.disableWhiteboardDrawing}
+              isLocalHost={lk.isLocalHost}
+            />
           )}
           {showSettings && (
             <SettingsPanel
