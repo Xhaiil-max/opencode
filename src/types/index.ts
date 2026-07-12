@@ -43,6 +43,37 @@ export interface Keybind {
   keys: string
 }
 
+export interface Stats {
+  audio: {
+    inputLevel: number
+    outputLevel: number
+    packetLoss: number
+    jitter: number
+    latency: number
+  }
+  video: {
+    width: number
+    height: number
+    frameRate: number
+    packetLoss: number
+    jitter: number
+  }
+  screenShare: {
+    width: number
+    height: number
+    frameRate: number
+    packetLoss: number
+    jitter: number
+  }
+}
+
+export interface HostSettings {
+  disableChat: boolean
+  muteEveryone: boolean
+  disableCameras: boolean
+  chatSlowdown: boolean
+}
+
 export interface ScreenshareTarget {
   id: string
   label: string

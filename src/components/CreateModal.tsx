@@ -29,8 +29,8 @@ export default function CreateModal({ onClose, onConfirm }: CreateModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-md mx-4 border border-zinc-800" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+      <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-md mx-4 border border-zinc-800">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-medium">Create Meeting</h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-zinc-800 transition-colors">

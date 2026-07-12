@@ -13,12 +13,12 @@ export default function JoinModal({ onClose, onConfirm }: JoinModalProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (username && meetingId && passcode) onConfirm(username, meetingId, passcode)
+    if (username.trim() && meetingId.trim()) onConfirm(username.trim(), meetingId.trim(), passcode)
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-md mx-4 border border-zinc-800" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+      <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-md mx-4 border border-zinc-800">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-medium">Join Meeting</h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-zinc-800 transition-colors">
@@ -30,19 +30,21 @@ export default function JoinModal({ onClose, onConfirm }: JoinModalProps) {
             value={username}
             onChange={e => setUsername(e.target.value)}
             placeholder="Username"
+            required
             className="px-4 py-3 rounded-xl bg-zinc-800 border border-zinc-700 focus:border-indigo-500 outline-none transition-colors"
           />
           <input
             value={meetingId}
             onChange={e => setMeetingId(e.target.value)}
             placeholder="Meeting ID or Link"
+            required
             className="px-4 py-3 rounded-xl bg-zinc-800 border border-zinc-700 focus:border-indigo-500 outline-none transition-colors"
           />
           <input
             type="password"
             value={passcode}
             onChange={e => setPasscode(e.target.value)}
-            placeholder="Passcode"
+            placeholder="Passcode (optional)"
             className="px-4 py-3 rounded-xl bg-zinc-800 border border-zinc-700 focus:border-indigo-500 outline-none transition-colors"
           />
           <button

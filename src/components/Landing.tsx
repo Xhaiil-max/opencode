@@ -39,8 +39,8 @@ export default function Landing({ onCreateMeeting, onJoinMeeting }: LandingProps
         </button>
       </div>
 
-      {showCreate && <CreateModal onClose={() => setShowCreate(false)} onConfirm={onCreateMeeting} />}
-      {showJoin && <JoinModal onClose={() => setShowJoin(false)} onConfirm={(name, id, passcode) => onJoinMeeting(name, id, passcode)} />}
+          {showJoin && <JoinModal onClose={() => setShowJoin(false)} onConfirm={(name, id, passcode) => { setShowJoin(false); onJoinMeeting(name, id, passcode) }} />}
+          {showCreate && <CreateModal onClose={() => setShowCreate(false)} onConfirm={(name, id, passcode) => { setShowCreate(false); onCreateMeeting(name, id, passcode) }} />}
     </div>
   )
 }
