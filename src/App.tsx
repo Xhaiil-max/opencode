@@ -26,7 +26,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen bg-bg-primary text-text-primary">
       {view === 'landing' ? (
         <Landing
           onCreateMeeting={handleCreate}

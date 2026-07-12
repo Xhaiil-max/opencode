@@ -18,23 +18,23 @@ export default function ScreenshareModal({ onClose, onStartScreenShare }: Screen
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-zinc-900 rounded-2xl w-full max-w-lg mx-4 border border-zinc-800">
-        <div className="flex items-center justify-between p-4 border-b border-zinc-800">
-          <h2 className="text-lg font-medium">Share Screen</h2>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-zinc-800"><X size={18} /></button>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
+      <div className="glass-card w-full max-w-lg mx-4 animate-scale-in">
+        <div className="flex items-center justify-between p-4 border-b border-border-primary">
+          <h2 className="text-lg font-display font-medium">Share Screen</h2>
+          <button onClick={onClose} className="btn-ghost btn-icon-sm"><X size={18} /></button>
         </div>
 
         <div className="flex items-center gap-1 px-4 pt-3">
           <button
             onClick={() => setTab('main')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${tab === 'main' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'}`}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${tab === 'main' ? 'bg-bg-tertiary text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'}`}
           >
             Share
           </button>
           <button
             onClick={() => setTab('settings')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${tab === 'settings' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'}`}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${tab === 'settings' ? 'bg-bg-tertiary text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'}`}
           >
             Quality
           </button>
@@ -43,31 +43,31 @@ export default function ScreenshareModal({ onClose, onStartScreenShare }: Screen
         <div className="p-4">
           {tab === 'main' ? (
             <div className="flex flex-col gap-4">
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-text-secondary">
                 Choose a screen, window, or tab to share. Enable app audio below to share sound from applications (Chrome/Edge).
               </p>
 
-              <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-800/50 border border-zinc-700/50">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-bg-tertiary border border-border-primary">
                 <div className="flex items-center gap-2">
-                  <Volume2 size={16} className="text-zinc-400" />
+                  <Volume2 size={16} className="text-text-muted" />
                   <div>
                     <span className="text-sm block">Share application audio</span>
-                    <span className="text-xs text-zinc-500">Tab or window audio when supported</span>
+                    <span className="text-xs text-text-muted">Tab or window audio when supported</span>
                   </div>
                 </div>
                 <button
                   onClick={() => setSettings(s => ({ ...s, includeAudio: !s.includeAudio }))}
-                  className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${settings.includeAudio ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                  className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${settings.includeAudio ? 'bg-haze-500' : 'bg-bg-elevated'}`}
                 >
                   <div className={`w-3.5 h-3.5 bg-white rounded-full absolute top-0.5 transition-transform ${settings.includeAudio ? 'translate-x-5' : 'translate-x-0.5'}`} />
                 </button>
               </div>
 
               <div className="flex gap-3">
-                <button onClick={onClose} className="flex-1 px-4 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 transition-colors text-sm font-medium">
+                <button onClick={onClose} className="btn-secondary flex-1 px-4 py-3">
                   Cancel
                 </button>
-                <button onClick={handleShare} className="flex-1 px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+                <button onClick={handleShare} className="btn-primary flex-1 px-4 py-3 flex items-center justify-center gap-2">
                   <MonitorUp size={16} /> Start Sharing
                 </button>
               </div>
@@ -75,11 +75,11 @@ export default function ScreenshareModal({ onClose, onStartScreenShare }: Screen
           ) : (
             <div className="flex flex-col gap-4">
               <div>
-                <label className="text-xs text-zinc-400 mb-2 block">Resolution</label>
+                <label className="text-xs text-text-muted mb-2 block">Resolution</label>
                 <select
                   value={settings.resolution}
                   onChange={e => setSettings(s => ({ ...s, resolution: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm outline-none"
+                  className="input appearance-none"
                 >
                   <option value="1280x720">1280 × 720 (HD)</option>
                   <option value="1920x1080">1920 × 1080 (Full HD)</option>
@@ -88,11 +88,11 @@ export default function ScreenshareModal({ onClose, onStartScreenShare }: Screen
                 </select>
               </div>
               <div>
-                <label className="text-xs text-zinc-400 mb-2 block">Frame Rate</label>
+                <label className="text-xs text-text-muted mb-2 block">Frame Rate</label>
                 <select
                   value={settings.frameRate}
                   onChange={e => setSettings(s => ({ ...s, frameRate: Number(e.target.value) }))}
-                  className="w-full px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm outline-none"
+                  className="input appearance-none"
                 >
                   <option value={15}>15 fps</option>
                   <option value={24}>24 fps</option>
@@ -100,7 +100,7 @@ export default function ScreenshareModal({ onClose, onStartScreenShare }: Screen
                   <option value={60}>60 fps</option>
                 </select>
               </div>
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-text-muted">
                 Higher quality uses more bandwidth. Actual quality depends on your browser and connection.
               </p>
             </div>

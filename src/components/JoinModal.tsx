@@ -18,11 +18,11 @@ export default function JoinModal({ onClose, onConfirm, initialMeetingId }: Join
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-md mx-4 border border-zinc-800">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
+      <div className="glass-card w-full max-w-md mx-4 p-6 animate-scale-in">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-medium">Join Meeting</h2>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-zinc-800 transition-colors">
+          <h2 className="text-xl font-display font-medium">Join Meeting</h2>
+          <button onClick={onClose} className="btn-ghost btn-icon-sm" aria-label="Close">
             <X size={20} />
           </button>
         </div>
@@ -32,25 +32,26 @@ export default function JoinModal({ onClose, onConfirm, initialMeetingId }: Join
             onChange={e => setUsername(e.target.value)}
             placeholder="Username"
             required
-            className="px-4 py-3 rounded-xl bg-zinc-800 border border-zinc-700 focus:border-indigo-500 outline-none transition-colors"
+            className="input"
+            autoFocus
           />
           <input
             value={meetingId}
             onChange={e => setMeetingId(e.target.value)}
             placeholder="Meeting ID or Link"
             required
-            className="px-4 py-3 rounded-xl bg-zinc-800 border border-zinc-700 focus:border-indigo-500 outline-none transition-colors"
+            className="input"
           />
           <input
             type="password"
             value={passcode}
             onChange={e => setPasscode(e.target.value)}
             placeholder="Passcode (optional)"
-            className="px-4 py-3 rounded-xl bg-zinc-800 border border-zinc-700 focus:border-indigo-500 outline-none transition-colors"
+            className="input"
           />
           <button
             type="submit"
-            className="px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition-colors font-medium mt-2"
+            className="btn-primary mt-2"
           >
             Join
           </button>

@@ -29,21 +29,21 @@ export default function CreateModal({ onClose, onConfirm }: CreateModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-md mx-4 border border-zinc-800">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
+      <div className="glass-card w-full max-w-md mx-4 p-6 animate-scale-in">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-medium">Create Meeting</h2>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-zinc-800 transition-colors">
+          <h2 className="text-xl font-display font-medium">Create Meeting</h2>
+          <button onClick={onClose} className="btn-ghost btn-icon-sm" aria-label="Close">
             <X size={20} />
           </button>
         </div>
 
-        <div className="mb-4 p-3 rounded-xl bg-zinc-800/60 border border-zinc-700">
-          <label className="text-xs uppercase tracking-widest text-zinc-400 mb-2 block">Meeting ID</label>
+        <div className="mb-4 p-3 rounded-xl bg-bg-tertiary border border-border-primary">
+          <label className="text-xs uppercase tracking-widest text-text-muted mb-2 block">Meeting ID</label>
           <div className="flex items-center gap-2">
-            <code className="text-indigo-400 font-mono text-sm">{meetingId}</code>
-            <button onClick={copyId} className="p-1 rounded-lg hover:bg-zinc-700 transition-colors">
-              {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+            <code className="text-haze-400 font-mono text-sm">{meetingId}</code>
+            <button onClick={copyId} className="btn-ghost btn-icon-sm" aria-label="Copy meeting ID">
+              {copied ? <Check size={16} className="text-accent-success" /> : <Copy size={16} />}
             </button>
           </div>
         </div>
@@ -53,18 +53,19 @@ export default function CreateModal({ onClose, onConfirm }: CreateModalProps) {
             value={username}
             onChange={e => setUsername(e.target.value)}
             placeholder="Username"
-            className="px-4 py-3 rounded-xl bg-zinc-800 border border-zinc-700 focus:border-indigo-500 outline-none transition-colors"
+            className="input"
+            autoFocus
           />
           <input
             type="password"
             value={passcode}
             onChange={e => setPasscode(e.target.value)}
             placeholder="Custom Passcode (optional)"
-            className="px-4 py-3 rounded-xl bg-zinc-800 border border-zinc-700 focus:border-indigo-500 outline-none transition-min"
+            className="input"
           />
           <button
             type="submit"
-            className="px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition-colors font-medium mt-2"
+            className="btn-primary mt-2"
           >
             Create Meeting
           </button>

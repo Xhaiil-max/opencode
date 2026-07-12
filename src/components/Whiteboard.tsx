@@ -14,7 +14,7 @@ interface WhiteboardProps {
   isLocalHost?: boolean
 }
 
-export default function Whiteboard({ isOpen, onClose, disableWhiteboardDrawing, isLocalHost }: WhiteboardProps) {
+export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboardDrawing, isLocalHost }: WhiteboardProps) {
   const localIdentity = useLocalIdentity()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [strokes, setStrokes] = useState<WhiteboardStroke[]>([])
@@ -89,8 +89,8 @@ export default function Whiteboard({ isOpen, onClose, disableWhiteboardDrawing, 
   }, [currentStroke])
 
   const clearCanvas = () => {
+    if (!canDraw) return
     setStrokes([])
-    setCurrentStroke(null)
   }
 
   const downloadCanvas = () => {
@@ -102,99 +102,71 @@ export default function Whiteboard({ isOpen, onClose, disableWhiteboardDrawing, 
     link.click()
   }
 
-  const handleResize = () => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const container = canvas.parentElement
-    if (!container) return
-    canvas.width = container.clientWidth
-    canvas.height = container.clientHeight
-  }
-
   useEffect(() => {
-    handleResize()
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
-
-  // Redraw all strokes
-  useEffect(() => {
+    if (!canvasRef.current) return
     const canvas = canvasRef.current
-    if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.fillStyle = '#1e1e1e'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-    // Draw grid
-    ctx.strokeStyle = '#333'
-    ctx.lineWidth = 0.5
-    for (let i = 0; i <= canvas.width; i += 20) {
-      ctx.beginPath()
-      ctx.moveTo(i, 0)
-      ctx.lineTo(i, canvas.height)
-      ctx.stroke()
-    }
-    for (let i = 0; i <= canvas.height; i += 20) {
-      ctx.beginPath()
-      ctx.moveTo(0, i)
-      ctx.lineTo(canvas.width, i)
-      ctx.stroke()
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect()
+      canvas.width = rect.width * window.devicePixelRatio
+      canvas.height = rect.height * window.devicePixelRatio
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
+      redrawAll()
     }
 
-    // Draw all strokes
-    strokes.forEach(stroke => {
-      if (stroke.points.length < 2) return
-      ctx.strokeStyle = stroke.color
-      ctx.lineWidth = stroke.width
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-      ctx.beginPath()
-      ctx.moveTo(stroke.points[0].x, stroke.points[0].y)
-      for (let i = 1; i < stroke.points.length; i++) {
-        ctx.lineTo(stroke.points[i].x, stroke.points[i].y)
-      }
-      ctx.stroke()
-    })
-
-    // Draw current stroke
-    if (currentStroke && currentStroke.points.length > 1) {
-      ctx.strokeStyle = currentStroke.color
-      ctx.lineWidth = currentStroke.width
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-      ctx.beginPath()
-      ctx.moveTo(currentStroke.points[0].x, currentStroke.points[0].y)
-      for (let i = 1; i < currentStroke.points.length; i++) {
-        ctx.lineTo(currentStroke.points[i].x, currentStroke.points[i].y)
-      }
-      ctx.stroke()
+    const redrawAll = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.fillStyle = '#0f0f0f'
+      ctx.fillRect(0, 0, canvas.width / window.devicePixelRatio, canvas.height / window.devicePixelRatio)
+      strokes.forEach(stroke => {
+        if (stroke.points.length < 2) return
+        ctx.strokeStyle = stroke.color
+        ctx.lineWidth = stroke.width
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+        ctx.beginPath()
+        ctx.moveTo(stroke.points[0].x, stroke.points[0].y)
+        for (let i = 1; i < stroke.points.length; i++) {
+          ctx.lineTo(stroke.points[i].x, stroke.points[i].y)
+        }
+        ctx.stroke()
+      })
     }
-  }, [strokes, currentStroke])
 
-  if (!isOpen) return null
+    resize()
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [strokes])
 
   const toolbar = (
-    <div className="flex items-center justify-between p-2 border-b border-zinc-700 bg-zinc-800/50">
-      <h3 className="text-sm font-medium">Whiteboard</h3>
+    <div className="flex items-center justify-between p-2 border-b border-border-primary glass shrink-0">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#ef4444' }}>  
+          <Pen size={16} className="text-white" />  
+        </div>
+        <span className="text-sm font-medium text-text-primary">Whiteboard</span>
+        {!canDraw && (
+          <span className="text-xs text-accent-warning px-2 py-0.5 rounded-full bg-accent-warning/20">View Only</span>
+        )}
+      </div>
       <div className="flex items-center gap-1">
         <button
           onClick={() => setMinimized(!minimized)}
-          className="p-1 rounded hover:bg-zinc-700"
+          className="p-1.5 rounded-lg hover:bg-bg-tertiary transition-colors text-text-secondary hover:text-text-primary"
           title={minimized ? 'Expand' : 'Minimize'}
         >
           {minimized ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
         </button>
         <button
           onClick={() => setFloating(!floating)}
-          className="p-1 rounded hover:bg-zinc-700"
+          className="p-1.5 rounded-lg hover:bg-bg-tertiary transition-colors text-text-secondary hover:text-text-primary"
           title={floating ? 'Dock' : 'Float'}
         >
           <MoreHorizontal size={14} />
         </button>
-        <button onClick={onClose} className="p-1 rounded hover:bg-zinc-700" title="Close">
+        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-bg-tertiary transition-colors text-text-secondary hover:text-text-primary" title="Close">
           <X size={14} />
         </button>
       </div>
@@ -202,62 +174,63 @@ export default function Whiteboard({ isOpen, onClose, disableWhiteboardDrawing, 
   )
 
   const canvasArea = (
-    <div className="flex-1 relative" style={{ touchAction: 'none' }}>\n            <canvas
-              ref={canvasRef}
-              className="w-full h-full cursor-crosshair"
-              onMouseDown={startDrawing}
-              onMouseMove={draw}
-              onMouseUp={stopDrawing}
-              onMouseLeave={stopDrawing}
-              onTouchStart={startDrawing}
-              onTouchMove={draw}
-              onTouchEnd={stopDrawing}
-            />
-          </div>
+    <div className="flex-1 relative overflow-hidden bg-bg-secondary">
+      <canvas
+        ref={canvasRef}
+        className="w-full h-full cursor-crosshair"
+        onMouseDown={startDrawing}
+        onMouseMove={draw}
+        onMouseUp={stopDrawing}
+        onMouseLeave={stopDrawing}
+        onTouchStart={startDrawing}
+        onTouchMove={draw}
+        onTouchEnd={stopDrawing}
+      />
+    </div>
   )
 
   const toolsPanel = (
-    <div className="flex items-center gap-2 p-2 border-b border-zinc-700 bg-zinc-800/50 flex-wrap">
-      <div className="flex items-center gap-1 bg-zinc-800 rounded-lg p-1">
+    <div className="flex items-center gap-2 p-2 border-b border-border-primary bg-bg-tertiary/50 flex-wrap">
+      <div className="flex items-center gap-1 bg-bg-secondary rounded-lg p-1">
         <button
           onClick={() => setTool('pen')}
-          className={`p-1.5 rounded ${tool === 'pen' ? 'bg-indigo-600' : 'hover:bg-zinc-700'}`}
+          className={`p-1.5 rounded ${tool === 'pen' ? 'bg-haze-500 text-white' : 'hover:bg-bg-tertiary text-text-secondary'}`}
           title="Pen"
         >
-          <Pen size={14} className={tool === 'pen' ? 'text-white' : 'text-zinc-400'} />
+          <Pen size={14} />
         </button>
         <button
           onClick={() => setTool('eraser')}
-          className={`p-1.5 rounded ${tool === 'eraser' ? 'bg-indigo-600' : 'hover:bg-zinc-700'}`}
+          className={`p-1.5 rounded ${tool === 'eraser' ? 'bg-haze-500 text-white' : 'hover:bg-bg-tertiary text-text-secondary'}`}
           title="Eraser"
         >
-          <Eraser size={14} className={tool === 'eraser' ? 'text-white' : 'text-zinc-400'} />
+          <Eraser size={14} />
         </button>
       </div>
 
-      <div className="w-px h-6 bg-zinc-700 mx-1" />
+      <div className="w-px h-6 bg-border-primary mx-1" />
 
       <div className="flex items-center gap-1">
         {WHITEBOARD_COLORS.map(c => (
           <button
             key={c}
             onClick={() => { setColor(c); setTool('pen'); }}
-            className={`w-6 h-6 rounded border-2 transition-colors ${color === c ? 'border-white scale-110' : 'border-transparent hover:border-zinc-600'}`}
+            className={`w-6 h-6 rounded border-2 transition-colors ${color === c ? 'border-white scale-110' : 'border-transparent hover:border-border-primary'}`}
             style={{ backgroundColor: c }}
             title={c === '#000000' ? 'Black' : c === '#ffffff' ? 'White' : 'Color'}
           />
         ))}
       </div>
 
-      <div className="w-px h-6 bg-zinc-700 mx-1" />
+      <div className="w-px h-6 bg-border-primary mx-1" />
 
       <div className="flex items-center gap-1">
-        <span className="text-xs text-zinc-500">Size:</span>
+        <span className="text-xs text-text-muted">Size:</span>
         {WHITEBOARD_WIDTHS.map(w => (
           <button
             key={w}
             onClick={() => setWidth(w)}
-            className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${width === w ? 'bg-indigo-600' : 'hover:bg-zinc-700'}`}
+            className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${width === w ? 'bg-haze-500' : 'hover:bg-bg-tertiary'}`}
             title={`${w}px`}
           >
             <div className="w-full h-0.5 bg-white rounded" style={{ width: `${Math.max(4, w * 2)}px` }} />
@@ -268,10 +241,10 @@ export default function Whiteboard({ isOpen, onClose, disableWhiteboardDrawing, 
       <div className="flex-1" />
 
       <div className="flex items-center gap-1">
-        <button onClick={clearCanvas} className="p-1.5 rounded hover:bg-zinc-700 text-red-400" title="Clear">
+        <button onClick={clearCanvas} disabled={!canDraw} className="p-1.5 rounded hover:bg-bg-tertiary transition-colors text-accent-error opacity-50" title="Clear">
           <Trash2 size={14} />
         </button>
-        <button onClick={downloadCanvas} className="p-1.5 rounded hover:bg-zinc-700 text-green-400" title="Download">
+        <button onClick={downloadCanvas} className="p-1.5 rounded hover:bg-bg-tertiary transition-colors text-accent-success" title="Download">
           <Download size={14} />
         </button>
       </div>
@@ -279,7 +252,7 @@ export default function Whiteboard({ isOpen, onClose, disableWhiteboardDrawing, 
   )
 
   const content = (
-    <div className="flex flex-col h-full bg-zinc-900">
+    <div className="flex flex-col h-full bg-bg-primary">
       {toolbar}
       {!minimized && (
         <div className="flex-1 flex flex-col relative">
