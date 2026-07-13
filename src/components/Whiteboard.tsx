@@ -8,6 +8,13 @@ import { useLocalIdentity, useRoom } from '../context/LiveKitContext'
 import { useLiveKit } from '../hooks/useLiveKit'
 import { WHITEBOARD_COLORS, WHITEBOARD_WIDTHS, type WhiteboardStroke } from '../utils/whiteboard'
 
+// Extend Window interface for throttle tracking
+declare global {
+  interface Window {
+    lastCursorSend: number
+  }
+}
+
 interface WhiteboardProps {
   isOpen: boolean
   onClose: () => void
@@ -39,13 +46,11 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
 
   const canDraw = isLocalHost || !disableWhiteboardDrawing
 
-  const canDraw = isLocalHost || !disableWhiteboardDrawing
-
   // Subscribe to whiteboard updates from other participants
   useEffect(() => {
     if (!room) return
 
-    const handleDataReceived = (payload: Uint8Array, participant?: { identity: string }) => {
+    const handleDataReceived = (payload: Uint8Array, _participant?: { identity: string }) => {
       try {
         const data = JSON.parse(new TextDecoder().decode(payload))
         if (data.type === 'whiteboardStroke' && data.stroke) {
@@ -71,7 +76,9 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
     }
 
     room.on('dataReceived', handleDataReceived)
-    return () => room.off('dataReceived', handleDataReceived)
+    return () => {
+      room.off('dataReceived', handleDataReceived)
+    }
   }, [room, localIdentity])
 
   // Broadcast cursor position
@@ -122,7 +129,7 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
 
     return () => {
       canvasRef.current?.removeEventListener('mousemove', handleMouseMove)
-      cursorRef.current?.removeEventListener('touchmove', handleTouchMove)
+      canvasRef.current?.removeEventListener('touchmove', handleTouchMove)
     }
   }, [room, localIdentity, publishData])
 

@@ -41,7 +41,7 @@ function participantToUser(participant: Participant, hostIdentity: string): User
     name: participant.name || participant.identity,
     micOn: participant.isMicrophoneEnabled,
     camOn: participant.isCameraEnabled,
-    handRaising: participant.isSpeaking,
+    handRaised: participant.isSpeaking,
     audioLevel: Math.round((participant.audioLevel ?? 0) * 100),
     volume: 80,
     localVideoDisabled: false,
@@ -51,6 +51,8 @@ function participantToUser(participant: Participant, hostIdentity: string): User
     connectionQuality: 0, // Will be updated later
     isDeafened: false, // Default false, will be updated
     isMutedLocally: false,
+    isSharing: participant.isScreenShareEnabled ?? false,
+    isSpeaking: participant.isSpeaking ?? false,
   };
 }
 
@@ -106,7 +108,7 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
   micGainRef.current = micGain;
   
   // Whiteboard callbacks
-  const whiteboardCallbacks = useRef<((type: 'stroke', stroke: WhiteboardStroke) => void)[]>([]);
+  const whiteboardCallbacks = useRef<((stroke: WhiteboardStroke) => void)[]>([]);
   const whiteboardClearCallbacks = useRef<(() => void)[]>([]);
   
   const subscribeWhiteboard = useCallback((onStroke: (stroke: WhiteboardStroke) => void, onClear: () => void) => {
@@ -801,6 +803,13 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
     [publishData, username]
   );
 
+  const broadcastHostAction = useCallback(
+    async (action: string) => {
+      await publishData({ type: "hostAction", action });
+    },
+    [publishData]
+  );
+
   // Handle deafEveryone changes specifically
   useEffect(() => {
     if (!isHostCreatorRef.current) return;
@@ -815,13 +824,6 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
       broadcastHostAction("undeafenEveryone");
     }
   }, [hostSettings.deafenEveryone, hostSettings.muteEveryone, broadcastHostAction, isHostCreatorRef.current]);
-
-  const broadcastHostAction = useCallback(
-    async (action: string) => {
-      await publishData({ type: "hostAction", action });
-    },
-    [publishData]
-  );
 
   const setUserColor = useCallback((color: string) => {
     setUserColor(color);
