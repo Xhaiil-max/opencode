@@ -40,4 +40,6 @@ export const sounds = {
   participantLeave: () => chord([880, 659, 554, 440], 0.3, 0.14),
   screenShareStart: () => chord([523, 659, 784, 1047], 0.4, 0.15),
   screenShareStop: () => chord([1047, 784, 659, 523], 0.35, 0.12),
+  deafen: () => tone(220, 0.2, 'sine', 0.05),
+  undeafen: () => tone(440, 0.2, 'sine', 0.08),
 }

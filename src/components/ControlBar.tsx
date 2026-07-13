@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import {
   Mic, MicOff, Video, VideoOff, MonitorUp, Hand, Ear, EarOff,
-  Settings, PhoneOff, ChevronUp, PanelRight, PanelRightClose, User, PenTool
+  Settings, PhoneOff, ChevronUp, PanelRight, PanelRightClose, User, PenTool,
+  Grid3x3, SplitSquareVertical, Menu
 } from 'lucide-react'
 
 interface ControlBarProps {
@@ -22,6 +23,8 @@ interface ControlBarProps {
   onEndCall: () => void
   sidebarOpen: boolean
   onToggleSidebar: () => void
+  sidebarTab: 'participants' | 'chat' | 'tools'
+  onSidebarTabChange: (tab: 'participants' | 'chat' | 'tools') => void
   selfViewMode: string
   onSelfViewModeToggle: () => void
   onSwitchAudioDevice: (deviceId: string) => void
@@ -30,6 +33,8 @@ interface ControlBarProps {
   onToggleWhiteboard: () => void
   disableWhiteboard?: boolean
   isLocalHost?: boolean
+  gridPreset: 'tiled' | 'spotlight' | 'speaker' | 'sidebar'
+  onGridPresetChange: (preset: 'tiled' | 'spotlight' | 'speaker' | 'sidebar') => void
 }
 
 export default function ControlBar({
@@ -41,15 +46,17 @@ export default function ControlBar({
   onSwitchAudioDevice, onSwitchVideoDevice,
   whiteboardOpen, onToggleWhiteboard,
   disableWhiteboard, isLocalHost,
+  gridPreset, onGridPresetChange,
 }: ControlBarProps) {
   const [showMicOptions, setShowMicOptions] = useState(false)
   const [showCamOptions, setShowCamOptions] = useState(false)
+  const [showGridOptions, setShowGridOptions] = useState(false)
 
   const canToggleWhiteboard = isLocalHost || !disableWhiteboard
 
   return (
     <div className="flex items-center justify-center gap-1.5 p-3 shrink-0">
-      <div className="flex items-center gap-1 glass p-1.5 rounded-2xl">
+      <div className="flex items-center gap-1 glass p-1.5 rounded-2xl border border-border-primary/50 backdrop-blur">
         <ButtonGroup
           label={isMicOn ? 'Mute' : 'Unmute'}
           icon={isMicOn ? Mic : MicOff}
@@ -64,15 +71,19 @@ export default function ControlBar({
               {audioDevices.length === 0 ? (
                 <p className="text-xs text-text-muted px-3 py-2">No microphones found</p>
               ) : (
-                audioDevices.map(d => (
-                  <button
-                    key={d.deviceId}
-                    onClick={() => { onSwitchAudioDevice(d.deviceId); setShowMicOptions(false) }}
-                    className="block w-full text-left text-xs px-3 py-2 rounded-lg hover:bg-bg-tertiary transition-colors truncate"
-                  >
-                    {d.label || `Microphone ${d.deviceId.slice(0, 6)}`}
-                  </button>
-                ))
+                ): (
+                <div className="absolute bottom-full mb-2 w-64 glass-strong rounded-xl p-2 shadow-2xl z-50 max-h-[80vh] overflow-y-auto">
+                  {audioDevices.map(d => (
+                    <button
+                      key={d.deviceId}
+                      onClick={() => { onSwitchAudioDevice(d.deviceId); setShowMicOptions(false) }}
+                      className="block w-full text-left text-xs px-3 py-2 rounded-lg hover:bg-bg-tertiary transition-colors truncate"
+                      title={d.label || `Microphone ${d.deviceId.slice(0, 6)}`}
+                    >
+                      {d.label || `Microphone ${d.deviceId.slice(0, 6)}`}
+                    </button>
+                  ))
+                )}
               )}
             </div>
           )}
@@ -92,15 +103,19 @@ export default function ControlBar({
               {videoDevices.length === 0 ? (
                 <p className="text-xs text-text-muted px-3 py-2">No cameras found</p>
               ) : (
-                videoDevices.map(d => (
-                  <button
-                    key={d.deviceId}
-                    onClick={() => { onSwitchVideoDevice(d.deviceId); setShowCamOptions(false) }}
-                    className="block w-full text-left text-xs px-3 py-2 rounded-lg hover:bg-bg-tertiary transition-colors truncate"
-                  >
-                    {d.label || `Camera ${d.deviceId.slice(0, 6)}`}
-                  </button>
-                ))
+                ): (
+                <div className="absolute bottom-full mb-2 w-64 glass-strong rounded-xl p-2 shadow-2xl z-50 max-h-[80vh] overflow-y-auto">
+                  {videoDevices.map(d => (
+                    <button
+                      key={d.deviceId}
+                      onClick={() => { onSwitchVideoDevice(d.deviceId); setShowCamOptions(false) }}
+                      className="block w-full text-left text-xs px-3 py-2 rounded-lg hover:bg-bg-tertiary transition-colors truncate"
+                      title={d.label || `Camera ${d.deviceId.slice(0, 6)}`}
+                    >
+                      {d.label || `Camera ${d.deviceId.slice(0, 6)}`}
+                    </button>
+                  ))
+                )}
               )}
             </div>
           )}
@@ -142,6 +157,45 @@ export default function ControlBar({
           active={sidebarOpen}
           onClick={onToggleSidebar}
         />
+
+        {/* Grid Layout Controls */}
+        <div className="relative">
+          <button
+            onClick={() => setShowGridOptions(!showGridOptions)}
+            title="Grid Layout"
+            className="p-2.5 rounded-xl hover:bg-bg-tertiary transition-colors duration-200 hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <Grid3x3 size={18} />
+          </button>
+          {showGridOptions && (
+            <div className="absolute bottom-full mb-2 w-56 glass-strong rounded-xl p-2 shadow-2xl z-50 max-h-[60vh] overflow-y-auto">
+              <div className="space-y-1">
+                {[
+                  { id: 'tiled', label: 'Tiled', icon: Grid3x3 },
+                  { id: 'spotlight', label: 'Spotlight', icon: SplitSquareVertical },
+                  { id: 'speaker', label: 'Speaker', icon: Menu },
+                  { id: 'sidebar', label: 'Sidebar', icon: PanelRight }
+                ].map(option => (
+                  <button
+                    key={option.id}
+                    onClick={() => {
+                      onGridPresetChange(option.id as GridPreset);
+                      setShowGridOptions(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-bg-tertiary transition-colors ${
+                      gridPreset === option.id ? 'bg-haze-500/20 text-haze-400' : 'text-text-secondary'
+                    }`}
+                    title={option.label}
+                  >
+                    {option.icon && <option.icon size={16} />}
+                    <span>{option.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         <ControlButton label="Settings" icon={Settings} active={false} onClick={onSettings} />
 
         <div className="w-px h-6 bg-border-primary mx-1" />
@@ -153,18 +207,49 @@ export default function ControlBar({
   )
 }
 
-function ControlButton({ label, icon: Icon, active, danger, onClick, disabled }: { label: string; icon: React.ComponentType<{ size?: number }>; active: boolean; danger?: boolean; onClick: () => void; disabled?: boolean }) {
+function ControlButton({
+  label,
+  icon: Icon,
+  active,
+  danger,
+  onClick,
+  disabled,
+  variant = 'default',
+  size = 'md'
+}: {
+  label: string;
+  icon: React.ComponentType<{ size?: number }>;
+  active: boolean;
+  danger?: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+  variant?: 'default' | 'ghost';
+  size?: 'md' | 'icon';
+}) {
+  const sizeClasses = {
+    md: 'p-2.5 rounded-xl',
+    icon: 'p-2 rounded-lg',
+  }
+
+  const variantClasses = {
+    default: active
+      ? 'bg-haze-500/20 text-haze-400'
+      : danger
+        ? 'text-accent-error bg-accent-error/10'
+        : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-all duration-200',
+    ghost: active
+      ? 'bg-haze-500/20 text-haze-400'
+      : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-all duration-200',
+  }
+
   return (
     <button
       onClick={onClick}
       title={label}
       disabled={disabled}
-      className={`p-2.5 rounded-xl transition-colors ${
-        disabled ? 'opacity-50 cursor-not-allowed' :
-        active ? 'bg-haze-500/20 text-haze-400' : danger ? 'text-accent-error bg-accent-error/10' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
-      }`}
+      className={`${sizeClasses[size]} transition-colors ${variantClasses[variant]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''} hover:scale-[1.02] active:scale-[0.98]`}
     >
-      <Icon size={18} />
+      <Icon size={size === 'md' ? 18 : 16} />
     </button>
   )
 }
@@ -181,12 +266,12 @@ function ButtonGroup({ label, icon: Icon, active, danger, onClick, onArrowClick,
 }) {
   return (
     <div className="relative flex">
-      <button onClick={onClick} title={label} className={`p-2.5 rounded-l-xl transition-colors ${
+      <button onClick={onClick} title={label} className={`p-2.5 rounded-l-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${
         active ? 'bg-haze-500/20 text-haze-400' : danger ? 'text-accent-error bg-accent-error/10' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
       }`}>
         <Icon size={18} />
       </button>
-      <button onClick={onArrowClick} className={`p-2.5 pr-2 rounded-r-xl transition-colors border-l border-border-primary ${
+      <button onClick={onArrowClick} className={`p-2.5 pr-2 rounded-r-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border-l border-border-primary ${
         active ? 'bg-haze-500/20 text-haze-400' : danger ? 'text-accent-error bg-accent-error/10' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
       }`}>
         <ChevronUp size={12} />

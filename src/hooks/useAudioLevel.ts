@@ -4,6 +4,8 @@ import { Track, RoomEvent, type Room } from 'livekit-client'
 export function useAudioLevel(stream: MediaStream | null, active = true) {
   const [level, setLevel] = useState(0)
   const rafRef = useRef<number>(0)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const ctxRef = useRef<AudioContext | null>(null)
 
   useEffect(() => {
     if (!stream || !active) {
@@ -11,17 +13,34 @@ export function useAudioLevel(stream: MediaStream | null, active = true) {
       return
     }
 
-    const ctx = new AudioContext()
+    // Reuse AudioContext to avoid creating too many
+    let ctx = ctxRef.current
+    if (!ctx || ctx.state === 'closed') {
+      ctx = new AudioContext()
+      ctxRef.current = ctx
+    }
+
     const analyser = ctx.createAnalyser()
     analyser.fftSize = 256
+    analyser.smoothingTimeConstant = 0.3 // Smoother visualization
+    analyserRef.current = analyser
+    
     const source = ctx.createMediaStreamSource(stream)
     source.connect(analyser)
     const data = new Uint8Array(analyser.frequencyBinCount)
 
     const tick = () => {
+      if (!analyserRef.current) return
       analyser.getByteFrequencyData(data)
-      const avg = data.reduce((a, b) => a + b, 0) / data.length
-      setLevel(Math.min(100, Math.round((avg / 255) * 100 * 1.8)))
+      // Calculate RMS for more accurate level
+      let sum = 0
+      for (let i = 0; i < data.length; i++) {
+        sum += data[i] * data[i]
+      }
+      const rms = Math.sqrt(sum / data.length)
+      // Map 0-255 to 0-100 with better curve
+      const normalized = Math.min(100, Math.round((rms / 128) * 100))
+      setLevel(normalized)
       rafRef.current = requestAnimationFrame(tick)
     }
     tick()
@@ -29,7 +48,7 @@ export function useAudioLevel(stream: MediaStream | null, active = true) {
     return () => {
       cancelAnimationFrame(rafRef.current)
       source.disconnect()
-      void ctx.close()
+      // Don't close context - reuse it
     }
   }, [stream, active])
 

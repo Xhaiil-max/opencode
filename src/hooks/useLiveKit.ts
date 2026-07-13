@@ -1,11 +1,11 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Room,
   RoomEvent,
   Track,
   type Participant,
 } from "livekit-client";
-import type { User, ChatMessage, Stats, Keybind, HostSettings } from "../types";
+import type { User, ChatMessage, Stats, Keybind, HostSettings, ScreenShareUser, WhiteboardStroke } from "../types";
 import { sounds } from "../utils/sounds";
 import { getUserColor } from "../utils/colors";
 import type { ScreenShareSettings } from "../utils/screenShare";
@@ -26,7 +26,8 @@ const DEFAULT_HOST_SETTINGS: HostSettings = {
   chatSlowdown: false,
   disableWhiteboard: false,
   disableWhiteboardDrawing: false,
-};
+  deafenEveryone: false,
+}
 
 interface UseLiveKitOptions {
   username: string;
@@ -40,15 +41,16 @@ function participantToUser(participant: Participant, hostIdentity: string): User
     name: participant.name || participant.identity,
     micOn: participant.isMicrophoneEnabled,
     camOn: participant.isCameraEnabled,
-    handRaised: false,
-    isSharing: participant.isScreenShareEnabled,
-    isSpeaking: participant.isSpeaking,
+    handRaising: participant.isSpeaking,
     audioLevel: Math.round((participant.audioLevel ?? 0) * 100),
     volume: 80,
     localVideoDisabled: false,
     localScreenshareDisabled: false,
     isHost: participant.identity === hostIdentity,
     color: getUserColor(participant.identity),
+    connectionQuality: 0, // Will be updated later
+    isDeafened: false, // Default false, will be updated
+    isMutedLocally: false,
   };
 }
 
@@ -68,6 +70,9 @@ function syncUserFromParticipant(prev: User[], participant: Participant, hostIde
     audioLevel: Math.round((participant.audioLevel ?? 0) * 100),
     isHost: identity === hostIdentity,
     connectionQuality,
+    color: existing?.color ?? getUserColor(participant.identity), // Preserve or generate color
+    isDeafened: existing?.isDeafened ?? false,
+    isMutedLocally: existing?.isMutedLocally ?? false,
   };
   if (!existing) return [...prev, updated];
   return prev.map((u) => (u.id === identity ? updated : u));
@@ -95,7 +100,32 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
   const [hostSettings, setHostSettings] = useState<HostSettings>(DEFAULT_HOST_SETTINGS);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
-  const [micGain, setMicGain] = useState(100);
+  const [micGain, setMicGainState] = useState(100);
+  const [screenShares, setScreenShares] = useState<ScreenShareUser[]>([]);
+  const micGainRef = useRef(micGain);
+  micGainRef.current = micGain;
+  
+  // Whiteboard callbacks
+  const whiteboardCallbacks = useRef<((type: 'stroke', stroke: WhiteboardStroke) => void)[]>([]);
+  const whiteboardClearCallbacks = useRef<(() => void)[]>([]);
+  
+  const subscribeWhiteboard = useCallback((onStroke: (stroke: WhiteboardStroke) => void, onClear: () => void) => {
+    whiteboardCallbacks.current.push(onStroke);
+    whiteboardClearCallbacks.current.push(onClear);
+    return () => {
+      whiteboardCallbacks.current = whiteboardCallbacks.current.filter(cb => cb !== onStroke);
+      whiteboardClearCallbacks.current = whiteboardClearCallbacks.current.filter(cb => cb !== onClear);
+    };
+  }, []);
+  
+  // Mic gain setter for UI - actual gain applied via track processors in LiveKit
+  const setMicGain = useCallback((gain: number) => {
+    const clamped = Math.max(0, Math.min(200, gain));
+    setMicGainState(clamped);
+    micGainRef.current = clamped;
+    // Note: Actual gain application requires LiveKit track processors
+    // This is a placeholder for the UI state
+  }, []);
   const sentMessageIds = useRef<Set<string>>(new Set());
   const hostIdentityRef = useRef(hostIdentity);
   hostIdentityRef.current = hostIdentity;
@@ -115,13 +145,46 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
 
   const refreshDevices = useCallback(async () => {
     try {
-      const devices = await Room.getLocalDevices();
-      setAudioDevices(devices.filter((d) => d.kind === "audioinput"));
-      setVideoDevices(devices.filter((d) => d.kind === "videoinput"));
-    } catch {
-      // Permissions may not be granted yet
+      // Try to get current state of mic/cam without prompting if possible
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: false
+      }).catch(() => null);
+
+      // Get tracks to see what we have access to
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+
+      // Now enumerate devices
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      setAudioDevices(devices.filter((d) => d.kind === "audioinput"))
+      setVideoDevices(devices.filter((d) => d.kind === "videoinput"))
+    } catch (error) {
+      console.warn('Could not enumerate media devices:', error);
+      // Try alternate approach - just enumerate without attempting access first
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices()
+        setAudioDevices(devices.filter((d) => d.kind === "audioinput"))
+        setVideoDevices(devices.filter((d) => d.kind === "videoinput"))
+      } catch (enumError) {
+        console.error('Failed to enumerate devices even with fallback:', enumError);
+        // Set empty arrays but don't fail silently
+        setAudioDevices([])
+        setVideoDevices([])
+      }
     }
-  }, []);
+  }, [])
+
+  // Also refresh devices on mount
+  useEffect(() => {
+    refreshDevices()
+    // Listen for device changes
+    navigator.mediaDevices.addEventListener?.('devicechange', refreshDevices)
+    return () => {
+      navigator.mediaDevices.removeEventListener?.('devicechange', refreshDevices)
+    }
+  }, [refreshDevices])
 
   const addOrUpdateUser = useCallback((participant: Participant) => {
     setUsers((prev) => syncUserFromParticipant(prev, participant, hostIdentityRef.current, connectionQualityRef.current));
@@ -174,6 +237,19 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
           }
         }
 
+        if (message.type === "deafen") {
+          setUsers((prev) =>
+            prev.map((u) =>
+              u.id === message.identity
+                ? { ...u, isDeafened: message.value }
+                : u
+            )
+          );
+          if (participant?.identity !== roomRef.current?.localParticipant.identity) {
+            message.value ? sounds.deafen() : sounds.undeafen();
+          }
+        }
+
         if (message.type === "hostIdentity" && message.identity) {
           setHostIdentity((prev) => prev || message.identity);
           setUsers((prev) =>
@@ -221,13 +297,116 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
               setIsCamOn(false);
             }
           }
-          if (message.action.startsWith("removeParticipant:")) {
+          if (message.action === "deafenEveryone") {
+            // Set all users except self to deafened
+            setUsers((prev) =>
+              prev.map((u) =>
+                u.id === roomRef.current?.localParticipant.identity
+                  ? { ...u, isDeafened: false } // Self is never deafened by this command
+                  : { ...u, isDeafened: true }
+              )
+            );
+            // Update local state to reflect that others are deafened (but we can still hear ourselves)
+            // Actually, this is tricky - when a host deafens everyone, it typically means
+            // they can't hear anyone, including themselves in some implementations
+            // For simplicity, we'll just update the UI to show the deafened state
+            setIsDeafened(true);
+            sounds.deafen();
+          }
+          if (message.action === "undeafenEveryone") {
+            // Undo the deafening effect for everyone
+            setUsers((prev) =>
+              prev.map((u) => ({ ...u, isDeafened: false }))
+            );
+            // Update local state
+            setIsDeafened(false);
+            sounds.undeafen();
+          }
+          if (message.type === "userColor" && message.color && message.identity) {
+          setUsers((prev) =>
+            prev.map((u) =>
+              u.id === message.identity ? { ...u, color: message.color } : u
+            )
+          );
+        }
+
+        if (message.type === "deafen" && message.identity !== undefined) {
+          setUsers((prev) =>
+            prev.map((u) =>
+              u.id === message.identity
+                ? { ...u, isDeafened: message.value }
+                : u
+            )
+          );
+          // Play sound for self if we're the one being deafened/undeafened
+          if (participant?.identity === roomRef.current?.localParticipant.identity) {
+            message.value ? sounds.deafen() : sounds.undeafen();
+          }
+        }
+
+        if (message.type === "whiteboardStroke" && message.stroke) {
+          whiteboardCallbacks.current.forEach(cb => cb(message.stroke!));
+        }
+
+        if (message.type === "whiteboardClear") {
+          whiteboardClearCallbacks.current.forEach(cb => cb());
+        }
+
+        if (message.type === "hostAction") {
+          const room = roomRef.current;
+          if (!room || participant?.identity === room.localParticipant.identity) return;
+          const local = room.localParticipant;
+          if (message.action === "muteAll") {
+            local.setMicrophoneEnabled(false);
+            setIsMicOn(false);
+            sounds.mute();
+          }
+          if (message.action === "deafenEveryone") {
+            // Set all users except self to deafened
+            setUsers((prev) =>
+              prev.map((u) =>
+                u.id === roomRef.current?.localParticipant.identity
+                  ? { ...u, isDeafened: false } // Self is never deafened by this command
+                  : { ...u, isDeafened: true }
+              )
+            );
+            // Update local state to reflect that others are deafened (but we can still hear ourselves)
+            // Actually, this is tricky - when a host deafens everyone, it typically means
+            // they can't hear anyone, including themselves in some implementations
+            // For simplicity, we'll just update the UI to show the deafened state
+            setIsDeafened(true);
+            sounds.deafen();
+          }
+          if (message.action === "undeafenEveryone") {
+            // Undo the deafening effect for everyone
+            setUsers((prev) =>
+              prev.map((u) => ({ ...u, isDeafened: false }))
+            );
+            // Update local state
+            setIsDeafened(false);
+            sounds.undeafen();
+          }
+          if (message.action.startsWith("lowerHand:")) {
             const targetId = message.action.split(":")[1];
             if (targetId === local.identity) {
-              // Host is removing us - disconnect
-              await room.disconnect();
-              setConnectionState("disconnected");
-              setError("You have been removed from the meeting by the host");
+              setIsRaisedHand(false);
+              setUsers((prev) => prev.map((u) => (u.id === targetId ? { ...u, handRaised: false } : u)));
+              sounds.handLower();
+            }
+          }
+          if (message.action.startsWith("muteParticipant:")) {
+            const targetId = message.action.split(":")[1];
+            if (targetId === local.identity) {
+              local.setMicrophoneEnabled(false);
+              setIsMicOn(false);
+              sounds.mute();
+            }
+          }
+          if (message.action.startsWith("disableVideo:")) {
+            const targetId = message.action.split(":")[1];
+            if (targetId === local.identity) {
+              local.setCameraEnabled(false);
+              setIsCamOn(false);
             }
           }
         }
@@ -277,11 +456,16 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
         room.on(RoomEvent.TrackPublished, (pub, participant) => {
           addOrUpdateUser(participant);
           if (pub.source === Track.Source.ScreenShare) {
-            setUsers((prev) =>
-              prev.map((u) =>
-                u.id === participant.identity ? { ...u, isSharing: true } : u
-              )
-            );
+            const ssUser: ScreenShareUser = {
+              id: `${participant.identity}-screenshare`,
+              presenterId: participant.identity,
+              presenterName: participant.name || participant.identity,
+              presenterColor: getUserColor(participant.identity),
+              isSpeaking: participant.isSpeaking,
+              audioLevel: Math.round((participant.audioLevel ?? 0) * 100),
+              isLocal: participant.isLocal,
+            };
+            setScreenShares(prev => [...prev.filter(s => s.id !== ssUser.id), ssUser]);
             if (participant.identity === room.localParticipant.identity) setIsSharing(true);
             else sounds.screenShareStart();
           }
@@ -290,6 +474,7 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
         room.on(RoomEvent.TrackUnpublished, (pub, participant) => {
           addOrUpdateUser(participant);
           if (pub.source === Track.Source.ScreenShare) {
+            setScreenShares(prev => prev.filter(s => s.id !== `${participant.identity}-screenshare`));
             setUsers((prev) =>
               prev.map((u) =>
                 u.id === participant.identity ? { ...u, isSharing: false } : u
@@ -324,6 +509,7 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
           if (statsInterval) clearInterval(statsInterval);
           setConnectionState("disconnected");
           setUsers([]);
+          setScreenShares([]);
           setStats(null);
           roomRef.current = null;
           setRoom(null);
@@ -348,6 +534,20 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
               })(),
             }))
           );
+          // Also update screen shares
+          setScreenShares((prev) =>
+            prev.map((ss) => {
+              const p = ss.presenterId === room.localParticipant.identity
+                ? room.localParticipant
+                : room.remoteParticipants.get(ss.presenterId);
+              if (!p) return ss;
+              return {
+                ...ss,
+                isSpeaking: speakerIds.has(ss.presenterId),
+                audioLevel: Math.round((p.audioLevel ?? 0) * 100),
+              };
+            })
+          );
         });
 
         levelInterval = setInterval(() => {
@@ -361,6 +561,18 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
               if (!p) return u;
               return {
                 ...u,
+                isSpeaking: p.isSpeaking,
+                audioLevel: Math.round((p.audioLevel ?? 0) * 100),
+              };
+            })
+          );
+          // Also update screen shares
+          setScreenShares((prev) =>
+            prev.map((ss) => {
+              const p = all.find((x) => x.identity === ss.presenterId);
+              if (!p) return ss;
+              return {
+                ...ss,
                 isSpeaking: p.isSpeaking,
                 audioLevel: Math.round((p.audioLevel ?? 0) * 100),
               };
@@ -398,6 +610,16 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
               });
             }
 
+            // Get connection quality from room (0-5, higher is better)
+            let connectionQuality = 5;
+            try {
+              // @ts-ignore - connectionQuality might not be typed
+              const cq = room.connectionQuality;
+              connectionQuality = typeof cq === 'number' ? Math.max(0, Math.min(5, cq)) : 5;
+            } catch {
+              connectionQuality = 5;
+            }
+
             setStats({
               audio: {
                 inputLevel: Math.round((local.audioLevel ?? 0) * 100),
@@ -420,9 +642,9 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
                 packetLoss: 0,
                 jitter: 0,
               },
-              connectionQuality: (room as unknown as { connectionQuality: number }).connectionQuality,
+              connectionQuality,
             });
-            connectionQualityRef.current = (room as unknown as { connectionQuality: number }).connectionQuality;
+            connectionQualityRef.current = connectionQuality;
           } catch {
             // Stats collection is best-effort
           }
@@ -593,6 +815,26 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
     next ? sounds.handRaise() : sounds.handLower();
   }, [isRaisedHand, publishData]);
 
+  const toggleDeafen = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room) return;
+    const next = !isDeafened;
+    // Note: Deafening in LiveKit is typically done by setting the subscriber's volume to 0
+    // For now we'll track the state locally and potentially implement the actual deafening later
+    setIsDeafened(next);
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === room.localParticipant.identity ? { ...u, isDeafened: next } : u
+      )
+    );
+    await publishData({
+      type: "deafen",
+      identity: room.localParticipant.identity,
+      value: next,
+    });
+    next ? sounds.deafen() : sounds.undeafen();
+  }, [isDeafened, publishData]);
+
   const switchAudioDevice = useCallback(async (deviceId: string) => {
     const room = roomRef.current;
     if (!room) return;
@@ -616,6 +858,21 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
     [publishData, username]
   );
 
+  // Handle deafEveryone changes specifically
+  useEffect(() => {
+    if (!isHostCreatorRef.current) return;
+
+    // When deafEveryone is turned on, deafen everyone
+    if (hostSettings.deafenEveryone) {
+      broadcastHostAction("deafenEveryone");
+    }
+    // When deafEveryone is turned off, undeafen everyone
+    else if (!hostSettings.deafenEveryone && !hostSettings.muteEveryone) {
+      // Only undeafen if not also muting (muting takes precedence for audio)
+      broadcastHostAction("undeafenEveryone");
+    }
+  }, [hostSettings.deafenEveryone, hostSettings.muteEveryone, broadcastHostAction, isHostCreatorRef.current]);
+
   const broadcastHostAction = useCallback(
     async (action: string) => {
       await publishData({ type: "hostAction", action });
@@ -630,7 +887,9 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
         u.id === username ? { ...u, color } : u
       )
     );
-  }, [username]);
+    // Broadcast color change to other participants
+    publishData({ type: "userColor", color, identity: username });
+  }, [username, publishData]);
 
   return {
     room,
@@ -653,6 +912,9 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
     videoDevices,
     micGain,
     setMicGain,
+    screenShares,
+    subscribeWhiteboard,
+    publishData,
     setKeybinds,
     setIsDeafened,
     connect,
@@ -663,6 +925,7 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
     stopScreenShare,
     sendMessage,
     toggleHandRaise,
+    toggleDeafen,
     switchAudioDevice,
     switchVideoDevice,
     updateHostSettings,

@@ -14,6 +14,17 @@ export interface User {
   isHost: boolean
   color: string
   connectionQuality?: number // 0-5, higher is better
+  isDeafened?: boolean
+  isMutedLocally?: boolean
+}
+
+export interface ScreenShareUser {
+  id: string // e.g., "user123-screenshare"
+  presenterId: string // The actual user ID who is sharing
+  presenterName: string
+  presenterColor: string
+  isSpeaking: boolean
+  audioLevel: number
 }
 
 export interface ChatMessage {
@@ -34,7 +45,7 @@ export type GridPreset = 'tiled' | 'spotlight' | 'speaker' | 'sidebar'
 
 export type SidebarTab = 'participants' | 'chat' | 'tools'
 
-export type TabName = 'audio' | 'video' | 'keybinds' | 'general' | 'stats'
+export type TabName = 'audio' | 'video' | 'keybinds' | 'general' | 'stats' | 'screenshare' | 'chat' | 'host-controls'
 
 export interface Stat {
   label: string
@@ -81,10 +92,22 @@ export interface HostSettings {
   chatSlowdown: boolean
   disableWhiteboard: boolean
   disableWhiteboardDrawing: boolean
+  deafenEveryone: boolean
 }
 
-export interface ScreenshareTarget {
+export interface ScreenShareUser {
   id: string
-  label: string
-  type: 'fullscreen' | 'tab' | 'window' | 'region'
+  presenterId: string
+  presenterName: string
+  presenterColor: string
+  isLocal: boolean
+}
+
+export interface WhiteboardStroke {
+  id: string
+  points: { x: number; y: number }[]
+  color: string
+  width: number
+  userId: string
+  timestamp: number
 }

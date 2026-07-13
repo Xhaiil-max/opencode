@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import type { User } from '../types'
-import { Mic, MicOff, MonitorUp, Volume2, VolumeX, Eye, EyeOff, MoreVertical } from 'lucide-react'
+import { Mic, MicOff, MonitorUp, Volume2, VolumeX, Eye, EyeOff, MoreVertical, EarOff } from 'lucide-react'
 import ParticipantVideo from './ParticipantVideo'
+import AudioVisualizer from './AudioVisualizer'
 import { Track, type Participant } from 'livekit-client'
 import { useRoom, useLocalIdentity } from '../context/LiveKitContext'
 import { getDesaturatedColor } from '../utils/colors'
@@ -92,11 +93,34 @@ export default function ParticipantTile({ user, isCurrent, isDeafened }: Partici
   const openMenu = () => {
     if (!menuBtnRef.current) return
     const rect = menuBtnRef.current.getBoundingClientRect()
-    setMenuPos({ top: rect.bottom, left: rect.left })
+    const menuWidth = 224 // w-56 = 224px
+    const menuHeight = 140 // approximate height
+    
+    let left = rect.left
+    let top = rect.bottom + 4 // 4px gap below button
+    
+    // Check if menu would go off right edge
+    if (left + menuWidth > window.innerWidth) {
+      left = window.innerWidth - menuWidth - 8 // 8px padding from edge
+    }
+    // Check if menu would go off left edge
+    if (left < 8) {
+      left = 8
+    }
+    // Check if menu would go off bottom edge
+    if (top + menuHeight > window.innerHeight) {
+      top = rect.top - menuHeight - 4 // Show above button instead
+    }
+    // Check if menu would go off top edge
+    if (top < 0) {
+      top = 8
+    }
+    
+    setMenuPos({ top, left })
     setShowMenu(true)
   }
 
-  if (!isLocal && !user.camOn && !user.micOn && !user.isSharing && !isCurrent) {
+  if (!isLocal && !isCurrent && !participant) {
     return (
       <div className="relative aspect-video flex items-center justify-center bg-bg-tertiary border border-border-primary rounded-xl">
         <div className="text-center p-4 text-text-muted">
@@ -104,7 +128,7 @@ export default function ParticipantTile({ user, isCurrent, isDeafened }: Partici
             <span className="text-lg font-medium text-white">{initials}</span>
           </div>
           <span className="text-sm font-medium" style={{"color": userColor}}>{user.name}{isCurrent ? ' (You)' : ''}</span>
-          <span className="block text-xs mt-1">Not joined yet</span>
+          <span className="block text-xs mt-1">Connecting...</span>
         </div>
       </div>
     )
@@ -116,12 +140,46 @@ export default function ParticipantTile({ user, isCurrent, isDeafened }: Partici
       <audio ref={screenAudioRef} autoPlay playsInline muted={localMute || !!isDeafened} />
 
       <div className="relative flex-1 overflow-hidden bg-black/50">
+        {/* Audio visualization - waveform dots */}
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+          <AudioVisualizer level={user.audioLevel} className="h-6 w-24" type="dots" />
+          {!isLocal && user.isSpeaking && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full border-2 animate-ping opacity-75" style={{borderColor: userColor, animationDuration: '1500ms'}} />
+                <div className="absolute inset-0 rounded-full border-2 animate-ping opacity-50" style={{borderColor: userColor, animationDuration: '2000ms', animationDelay: '300ms'}} />
+                <div className="absolute inset-0 rounded-full border-2 animate-ping opacity-30" style={{borderColor: userColor, animationDuration: '2500ms', animationDelay: '600ms'}} />
+              </div>
+            </div>
+          )}
+        </div>
         {(showScreenShare || !showCamera) ? (
           <div className="absolute inset-0 flex items-center justify-center" style={{"backgroundColor": getDesaturatedColor(userColor, 0.3)}}>
             {user.isSharing ? (
-              <div className="flex flex-col items-center gap-1">
-                <MonitorUp size={22} className="text-accent-success/60" />
-                <span className="text-xs text-accent-success/60">Sharing screen</span>
+              <div className="flex flex-col items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <MonitorUp size={26} className="text-accent-success animate-pulse" />
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-accent-success/60">You're sharing</span>
+                    <span className="text-xs text-accent-success/60">your screen</span>
+                  </div>
+                </div>
+                {!localVideoOff || screenAudioRef.current?.srcObject ? (
+          <div className="flex items-center gap-2 text-xs text-accent-success/40">
+            {!localVideoOff && (
+              <>
+                <Video size={14} className="text-accent-success" />
+                <span>+(Camera)</span>
+              </>
+            )}
+            {screenAudioRef.current?.srcObject && (
+              <>
+                <Mic size={14} className="text-accent-success" />
+                <span>+(Audio)</span>
+              </>
+            )}
+          </div>
+        ) : null}
               </div>
             ) : (
               <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{"backgroundColor": userColor}}>
@@ -138,13 +196,37 @@ export default function ParticipantTile({ user, isCurrent, isDeafened }: Partici
             </div>
           </div>
         )}
+
+        {/* Deafen indicator for other users */}
+        {!isLocal && user.isDeafened && (
+          <div className="absolute top-2 left-2 z-10 flex items-center gap-1 bg-accent-error/90 text-white px-2 py-1 rounded-full text-xs font-medium shadow-lg">
+            <EarOff size={10} />
+            <span>Deafened</span>
+          </div>
+        )}
+
+        {/* Muted locally indicator */}
+        {!isLocal && localMute && (
+          <div className="absolute top-2 left-2 z-10 flex items-center gap-1 bg-amber-500/90 text-white px-2 py-1 rounded-full text-xs font-medium shadow-lg">
+            <MicOff size={10} />
+            <span>Muted</span>
+          </div>
+        )}
       </div>
 
       <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-bg-primary/80 to-transparent flex items-center gap-1.5 z-10">
         <div className="flex gap-1 mr-auto">
           {user.micOn ? <Mic size={12} className="text-accent-success" /> : <MicOff size={12} className="text-accent-error" />}
           {user.handRaised && <span className="text-accent-warning text-xs">✋</span>}
-          {user.isSharing && <MonitorUp size={12} className="text-accent-success" />}
+          {user.isSharing ? (
+  <>
+    <MonitorUp size={12} className="text-accent-success" />
+    {!localVideoOff && <span className="xs ml-1">+Cam</span>}
+    {screenAudioRef.current?.srcObject && <span className="xs ml-1">+Audio</span>}
+  </>
+) : null}
+          {user.isDeafened && <EarOff size={12} className="text-accent-error" />}
+          {localMute && <MicOff size={12} className="text-amber-500" />}
         </div>
         <span className="text-xs font-medium truncate" style={{"color": userColor}}>{user.name}{isCurrent ? ' (You)' : ''}</span>
       </div>
@@ -163,8 +245,8 @@ export default function ParticipantTile({ user, isCurrent, isDeafened }: Partici
 
       {!isLocal && showMenu && createPortal(
         <div
-          className="fixed z-[100] w-56 glass-strong rounded-xl p-3 shadow-2xl flex flex-col gap-2.5 -translate-x-full -translate-y-full"
-          style={{"top": menuPos.top, "left": menuPos.left}}
+          className="fixed z-[9999] w-56 glass-strong rounded-xl p-3 shadow-2xl flex flex-col gap-2.5 "
+          style={{ top: menuPos.top, left: menuPos.left }}
         >
           <div>
             <label className="text-xs text-text-muted mb-1 flex items-center gap-1"><Volume2 size={12} /> Volume</label>
@@ -187,12 +269,6 @@ export default function ParticipantTile({ user, isCurrent, isDeafened }: Partici
         document.body
       )}
 
-      {!isLocal && (
-        <>
-          <audio ref={audioRef} autoPlay playsInline muted={localMute || !!isDeafened} />
-          <audio ref={screenAudioRef} autoPlay playsInline muted={localMute || !!isDeafened} />
-        </>
-      )}
-    </div>
+          </div>
   )
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Copy, Check, Wifi, WifiOff, WifiHigh, MoreHorizontal, PenTool, Settings, Users, MessageSquare } from 'lucide-react'
-import type { SelfViewMode, SidebarTab } from '../types'
+import type { SelfViewMode, SidebarTab, GridPreset } from '../types'
 import ControlBar from './ControlBar'
 import ParticipantTile from './ParticipantTile'
 import SelfView from './SelfView'
@@ -16,30 +16,53 @@ import { copyMeetingLink } from '../utils/meetingLink'
 function ConnectionQualityIndicator({ quality, state }: { quality: number; state: string }) {
   // LiveKit connectionQuality is 0-5, higher is better
   // 5 = excellent (all bars), 4 = good, 3 = fair, 2 = poor, 1 = very poor, 0 = disconnected
-  const getIcon = () => {
-    if (state !== 'connected') return <WifiOff size={14} className="text-text-muted" />
-    if (quality >= 4.5) return <WifiHigh size={14} className="text-accent-success" />
-    if (quality >= 3.5) return <Wifi size={14} className="text-accent-success" />
-    if (quality >= 2.5) return <Wifi size={14} className="text-accent-warning" />
-    if (quality >= 1.5) return <Wifi size={14} className="text-accent-error" />
-    return <WifiOff size={14} className="text-accent-error" />
-  }
 
-  const getText = () => {
-    if (state !== 'connected') return state.charAt(0).toUpperCase() + state.slice(1)
-    if (quality >= 4.5) return 'Excellent'
-    if (quality >= 3.5) return 'Good'
-    if (quality >= 2.5) return 'Fair'
-    if (quality >= 1.5) return 'Poor'
-    return 'Lost'
-  }
+  const getBarClasses = (barIndex: number) => {
+    if (state !== 'connected') return 'h-1 bg-text-muted/20';
+
+    const barCount = 4;
+    const threshold = (barIndex + 1) / barCount * 5; // Convert 0-5 scale to bar threshold
+
+    if (quality >= threshold) {
+      if (quality >= 4.5) return 'h-2.5 bg-accent-success';
+      if (quality >= 3.5) return 'h-2 bg-accent-success';
+      if (quality >= 2.5) return 'h-1.5 bg-accent-warning';
+      if (quality >= 1.5) return 'h-1 bg-accent-error';
+      return 'h-0.5 bg-accent-error';
+    }
+
+    return 'h-1 bg-text-muted/20';
+  };
+
+  const getTooltipContent = () => {
+    if (state !== 'connected') return `${state.charAt(0).toUpperCase() + state.slice(1)} (${quality.toFixed(1)}/5)`;
+
+    let qualityText = '';
+    if (quality >= 4.5) qualityText = 'Excellent';
+    else if (quality >= 3.5) qualityText = 'Good';
+    else if (quality >= 2.5) qualityText = 'Fair';
+    else if (quality >= 1.5) qualityText = 'Poor';
+    else qualityText = 'Very Poor';
+
+    return `${qualityText} (${quality.toFixed(1)}/5)`;
+  };
 
   return (
-    <div className="flex items-center gap-1.5">
-      {getIcon()}
-      <span className="text-xs font-medium text-text-secondary">{getText()}</span>
+    <div
+      className="relative inline-flex items-center gap-2"
+      title={getTooltipContent()}
+    >
+      <div className="flex space-x-0.5">
+        {[1, 2, 3, 4].map((bar) => (
+          <div key={bar} className={getBarClasses(bar - 1)} />
+        ))}
+      </div>
+      <span className="text-xs font-medium text-text-secondary whitespace-nowrap">
+        {/* Optional: show text label */}
+        {/* {getText()} */}
+      </span>
     </div>
-  )
+  );
 }
 
 interface MeetingRoomProps {
@@ -55,6 +78,7 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
   const [selfViewMode, setSelfViewMode] = useState<SelfViewMode>('grid')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('participants')
+  const [gridPreset, setGridPreset] = useState<GridPreset>('tiled')
   const [showSettings, setShowSettings] = useState(false)
   const [showScreenshare, setShowScreenshare] = useState(false)
   const [showHostControls, setShowHostControls] = useState(false)
@@ -115,6 +139,7 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
     lk.updateHostSettings(next)
     if (key === 'muteEveryone' && value) lk.broadcastHostAction('muteAll')
     if (key === 'disableCameras' && value) lk.broadcastHostAction('disableCameras')
+    if (key === 'deafenEveryone' && value) lk.broadcastHostAction('deafenEveryone')
   }
 
   if (lk.connectionState === 'disconnected' && !lk.error) {
@@ -139,11 +164,35 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
     )
   }
 
+  const { screenShares } = lk
+
   const renderGrid = () => {
     // Simple tiled layout - always show all participants in a grid
     return (
       <>
         {sortedRemote.map(u => <ParticipantTile key={u.id} user={u} isDeafened={lk.isDeafened} />)}
+        {screenShares.map(ss => (
+          <ParticipantTile
+            key={ss.id}
+            user={{
+              id: ss.id,
+              name: `${ss.presenterName}'s Screen`,
+              micOn: false,
+              camOn: false,
+              handRaised: false,
+              isSharing: true,
+              isSpeaking: ss.isSpeaking,
+              audioLevel: ss.audioLevel,
+              volume: 80,
+              localVideoDisabled: false,
+              localScreenshareDisabled: false,
+              isHost: false,
+              color: ss.presenterColor,
+              connectionQuality: 5,
+            }}
+            isDeafened={lk.isDeafened}
+          />
+        ))}
         {selfViewMode === 'grid' && (
           <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} isSpeaking={isSpeaking} />
         )}
@@ -241,6 +290,11 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
                     checked={lk.hostSettings.chatSlowdown}
                     onChange={v => handleHostSettingChange('chatSlowdown', v)}
                   />
+                  <HostControlRow
+                    label="Deafen Everyone"
+                    checked={lk.hostSettings.deafenEveryone}
+                    onChange={v => handleHostSettingChange('deafenEveryone', v)}
+                  />
                 </div>
               </div>
             )}
@@ -293,17 +347,27 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
               onSelfViewModeToggle={() => setSelfViewMode(v => v === 'floating' ? 'grid' : 'floating')}
               sidebarOpen={sidebarOpen}
               onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+              sidebarTab={sidebarTab}
+              onSidebarTabChange={setSidebarTab}
               onSwitchAudioDevice={lk.switchAudioDevice}
               onSwitchVideoDevice={lk.switchVideoDevice}
               whiteboardOpen={showWhiteboard}
               onToggleWhiteboard={() => setShowWhiteboard(!showWhiteboard)}
               disableWhiteboard={lk.hostSettings.disableWhiteboard}
               isLocalHost={lk.isLocalHost}
+              gridPreset={gridPreset}
+              onGridPresetChange={setGridPreset}
             />
           </div>
 
           {sidebarOpen && (
-            <Sidebar
+            <>
+              {/* Click outside to close */}
+              <div 
+                className="fixed inset-0 z-30 bg-black/0"
+                onClick={() => setSidebarOpen(false)}
+              />
+              <Sidebar
               users={lk.users}
               localIdentity={username}
               messages={lk.messages}
@@ -317,7 +381,9 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
               whiteboardOpen={showWhiteboard}
               hostSettings={lk.hostSettings}
               onUpdateHostSettings={lk.updateHostSettings}
+              onClose={() => setSidebarOpen(false)}
             />
+            </>
           )}
 
           {showScreenshare && (
@@ -342,6 +408,7 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
             <SettingsPanel
               onClose={() => setShowSettings(false)}
               keybinds={lk.keybinds}
+              setKeybinds={lk.setKeybinds}
               audioDevices={lk.audioDevices}
               videoDevices={lk.videoDevices}
               onSwitchAudioDevice={lk.switchAudioDevice}
@@ -354,6 +421,11 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
               camOn={lk.isCamOn}
               userColor={lk.users.find(u => u.id === username)?.color || '#6366f1'}
               onUserColorChange={lk.setUserColor}
+              selfViewMode={selfViewMode}
+              onSelfViewModeChange={setSelfViewMode}
+              gridPreset={'tiled'}
+              onGridPresetChange={() => {}}
+              isHost={lk.isLocalHost}
             />
           )}
         </div>

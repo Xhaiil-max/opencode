@@ -25,6 +25,7 @@
   --color-violet-900: #4c1d95;
   --color-violet-950: #2e1065;
 
+  /* Dark theme (default) */
   --color-bg-primary: #020617;
   --color-bg-secondary: #0a0f1a;
   --color-bg-tertiary: #111827;
@@ -106,10 +107,53 @@
   --shadow-glow-violet: 0 0 24px rgba(139, 92, 246, 0.25);
   --shadow-inner: inset 0 2px 4px rgba(0, 0, 0, 0.3);
 
-  --transition-fast: 120ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-bounce: 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Theme variables - Dark (default) */
+  --theme-bg-primary: #020617;
+  --theme-bg-secondary: #0a0f1a;
+  --theme-bg-tertiary: #111827;
+  --theme-bg-card: #151b2c;
+  --theme-bg-elevated: #1c2438;
+  --theme-bg-glass: rgba(21, 27, 44, 0.75);
+  --theme-bg-glass-strong: rgba(21, 27, 44, 0.9);
+  --theme-bg-glass-hover: rgba(28, 36, 56, 0.85);
+  --theme-border-primary: #1e293b;
+  --theme-border-secondary: #334155;
+  --theme-text-primary: #f8fafc;
+  --theme-text-secondary: #94a3b8;
+  --theme-text-muted: #64748b;
+
+  /* Light theme variables */
+  --theme-light-bg-primary: #f8fafc;
+  --theme-light-bg-secondary: #f1f5f9;
+  --theme-light-bg-tertiary: #e2e8f0;
+  --theme-light-bg-card: #ffffff;
+  --theme-light-bg-elevated: #ffffff;
+  --theme-light-bg-glass: rgba(255, 255, 255, 0.85);
+  --theme-light-bg-glass-strong: rgba(255, 255, 255, 0.95);
+  --theme-light-bg-glass-hover: rgba(241, 245, 249, 0.9);
+  --theme-light-border-primary: #e2e8f0;
+  --theme-light-border-secondary: #cbd5e1;
+  --theme-light-text-primary: #0f172a;
+  --theme-light-text-secondary: #475569;
+  --theme-light-text-muted: #94a3b8;
+
+  /* Gray theme variables */
+  --theme-gray-bg-primary: #18181b;
+  --theme-gray-bg-secondary: #27272a;
+  --theme-gray-bg-tertiary: #3f3f46;
+  --theme-gray-bg-card: #27272a;
+  --theme-gray-bg-elevated: #3f3f46;
+  --theme-gray-bg-glass: rgba(39, 39, 42, 0.85);
+  --theme-gray-bg-glass-strong: rgba(39, 39, 42, 0.95);
+  --theme-gray-bg-glass-hover: rgba(63, 63, 70, 0.9);
+  --theme-gray-border-primary: #3f3f46;
+  --theme-gray-border-secondary: #52525b;
+  --theme-gray-text-primary: #fafafa;
+  --theme-gray-text-secondary: #a1a1aa;
+  --theme-gray-text-muted: #71717a;
 
   --z-dropdown: 100;
   --z-sticky: 200;
@@ -119,6 +163,58 @@
   --z-popover: 600;
   --z-tooltip: 700;
   --z-toast: 800;
+}
+
+:root {
+  /* Default dark theme */
+  --color-bg-primary: var(--theme-bg-primary);
+  --color-bg-secondary: var(--theme-bg-secondary);
+  --color-bg-tertiary: var(--theme-bg-tertiary);
+  --color-bg-card: var(--theme-bg-card);
+  --color-bg-elevated: var(--theme-bg-elevated);
+  --color-bg-glass: var(--theme-bg-glass);
+  --color-bg-glass-strong: var(--theme-bg-glass-strong);
+  --color-bg-glass-hover: var(--theme-bg-glass-hover);
+  --color-border-primary: var(--theme-border-primary);
+  --color-border-secondary: var(--theme-border-secondary);
+  --color-text-primary: var(--theme-text-primary);
+  --color-text-secondary: var(--theme-text-secondary);
+  --color-text-muted: var(--theme-text-muted);
+  --font-size-base: var(--text-base);
+}
+
+/* Light theme */
+.theme-light {
+  --color-bg-primary: var(--theme-light-bg-primary);
+  --color-bg-secondary: var(--theme-light-bg-secondary);
+  --color-bg-tertiary: var(--theme-light-bg-tertiary);
+  --color-bg-card: var(--theme-light-bg-card);
+  --color-bg-elevated: var(--theme-light-bg-elevated);
+  --color-bg-glass: var(--theme-light-bg-glass);
+  --color-bg-glass-strong: var(--theme-light-bg-glass-strong);
+  --color-bg-glass-hover: var(--theme-light-bg-glass-hover);
+  --color-border-primary: var(--theme-light-border-primary);
+  --color-border-secondary: var(--theme-light-border-secondary);
+  --color-text-primary: var(--theme-light-text-primary);
+  --color-text-secondary: var(--theme-light-text-secondary);
+  --color-text-muted: var(--theme-light-text-muted);
+}
+
+/* Gray theme */
+.theme-gray {
+  --color-bg-primary: var(--theme-gray-bg-primary);
+  --color-bg-secondary: var(--theme-gray-bg-secondary);
+  --color-bg-tertiary: var(--theme-gray-bg-tertiary);
+  --color-bg-card: var(--theme-gray-bg-card);
+  --color-bg-elevated: var(--theme-gray-bg-elevated);
+  --color-bg-glass: var(--theme-gray-bg-glass);
+  --color-bg-glass-strong: var(--theme-gray-bg-glass-strong);
+  --color-bg-glass-hover: var(--theme-gray-bg-glass-hover);
+  --color-border-primary: var(--theme-gray-border-primary);
+  --color-border-secondary: var(--theme-gray-border-secondary);
+  --color-text-primary: var(--theme-gray-text-primary);
+  --color-text-secondary: var(--theme-gray-text-secondary);
+  --color-text-muted: var(--theme-gray-text-muted);
 }
 
 @layer utilities {
@@ -198,7 +294,7 @@
 
 @layer base {
   * { box-sizing: border-box; }
-  html { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+  html { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; font-size: var(--font-size-base); }
   body { background: var(--color-bg-primary); color: var(--color-text-primary); min-height: 100vh; line-height: var(--leading-normal); }
   h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 600; line-height: var(--leading-tight); color: var(--color-text-primary); }
   h1 { font-size: var(--text-5xl); letter-spacing: -0.02em; }

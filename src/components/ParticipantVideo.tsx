@@ -13,6 +13,7 @@ export default function ParticipantVideo({
   source = Track.Source.Camera,
 }: ParticipantVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const attachedTrackRef = useRef<Track | null>(null)
 
   useEffect(() => {
     const videoEl = videoRef.current
@@ -21,27 +22,42 @@ export default function ParticipantVideo({
     const attach = () => {
       const pub = participant.getTrackPublication(source)
       const track = pub?.track
+      
+      // Detach previous track if different
+      if (attachedTrackRef.current && attachedTrackRef.current !== track) {
+        attachedTrackRef.current.detach(videoEl)
+      }
+      
       if (track) {
         track.attach(videoEl)
+        attachedTrackRef.current = track
       } else {
         videoEl.srcObject = null
+        attachedTrackRef.current = null
       }
     }
 
     attach()
 
-    participant.on('trackSubscribed', attach)
-    participant.on('trackUnsubscribed', attach)
-    participant.on('trackPublished', attach)
-    participant.on('trackUnpublished', attach)
+    const handleTrackSubscribed = () => attach()
+    const handleTrackUnsubscribed = () => attach()
+    const handleTrackPublished = () => attach()
+    const handleTrackUnpublished = () => attach()
+
+    participant.on('trackSubscribed', handleTrackSubscribed)
+    participant.on('trackUnsubscribed', handleTrackUnsubscribed)
+    participant.on('trackPublished', handleTrackPublished)
+    participant.on('trackUnpublished', handleTrackUnpublished)
 
     return () => {
-      participant.off('trackSubscribed', attach)
-      participant.off('trackUnsubscribed', attach)
-      participant.off('trackPublished', attach)
-      participant.off('trackUnpublished', attach)
-      const pub = participant.getTrackPublication(source)
-      pub?.track?.detach(videoEl)
+      participant.off('trackSubscribed', handleTrackSubscribed)
+      participant.off('trackUnsubscribed', handleTrackUnsubscribed)
+      participant.off('trackPublished', handleTrackPublished)
+      participant.off('trackUnpublished', handleTrackUnpublished)
+      if (attachedTrackRef.current) {
+        attachedTrackRef.current.detach(videoEl)
+        attachedTrackRef.current = null
+      }
     }
   }, [participant, source])
 
@@ -51,7 +67,7 @@ export default function ParticipantVideo({
       autoPlay
       muted={isLocal}
       playsInline
-      className="absolute inset-0 w-full h-full object-contain bg-black"
+      className="absolute inset-0 w-full h-full object-cover bg-black"
     />
   )
 }

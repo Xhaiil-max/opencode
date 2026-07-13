@@ -4,7 +4,8 @@ import {
   Pen, Eraser, Trash2, Download, X, Minimize2, Maximize2, MoreHorizontal
 } from 'lucide-react'
 import DraggablePanel from './DraggablePanel'
-import { useLocalIdentity } from '../context/LiveKitContext'
+import { useLocalIdentity, useRoom } from '../context/LiveKitContext'
+import { useLiveKit } from '../hooks/useLiveKit'
 import { WHITEBOARD_COLORS, WHITEBOARD_WIDTHS, type WhiteboardStroke } from '../utils/whiteboard'
 
 interface WhiteboardProps {
@@ -14,8 +15,17 @@ interface WhiteboardProps {
   isLocalHost?: boolean
 }
 
+interface CursorPosition {
+  x: number
+  y: number
+  userId: string
+  timestamp: number
+}
+
 export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboardDrawing, isLocalHost }: WhiteboardProps) {
   const localIdentity = useLocalIdentity()
+  const room = useRoom()
+  const { publishData } = useLiveKit({ username: localIdentity, roomName: '' })
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [strokes, setStrokes] = useState<WhiteboardStroke[]>([])
   const [currentStroke, setCurrentStroke] = useState<WhiteboardStroke | null>(null)
@@ -25,8 +35,100 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
   const [isDrawing, setIsDrawing] = useState(false)
   const [minimized, setMinimized] = useState(false)
   const [floating, setFloating] = useState(false)
+  const [cursors, setCursors] = useState<CursorPosition[]>([])
 
   const canDraw = isLocalHost || !disableWhiteboardDrawing
+
+  const canDraw = isLocalHost || !disableWhiteboardDrawing
+
+  // Subscribe to whiteboard updates from other participants
+  useEffect(() => {
+    if (!room) return
+
+    const handleDataReceived = (payload: Uint8Array, participant?: { identity: string }) => {
+      try {
+        const data = JSON.parse(new TextDecoder().decode(payload))
+        if (data.type === 'whiteboardStroke' && data.stroke) {
+          // Only add strokes from other users
+          if (data.stroke.userId !== localIdentity) {
+            setStrokes(prev => [...prev, data.stroke])
+          }
+        } else if (data.type === 'whiteboardClear') {
+          setStrokes([])
+        } else if (data.type === 'cursorMove' && data.cursor) {
+          // Update cursor position for other users
+          if (data.cursor.userId !== localIdentity) {
+            setCursors(prev => {
+              // Remove old cursor for this user and add new one
+              const filtered = prev.filter(cursor => cursor.userId !== data.cursor!.userId)
+              return [...filtered, data.cursor]
+            })
+          }
+        }
+      } catch {
+        // Ignore non-JSON data
+      }
+    }
+
+    room.on('dataReceived', handleDataReceived)
+    return () => room.off('dataReceived', handleDataReceived)
+  }, [room, localIdentity])
+
+  // Broadcast cursor position
+  useEffect(() => {
+    if (!room || !canvasRef.current) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+
+      const rect = canvas.getBoundingClientRect()
+      const pos = {
+        x: ((e.clientX - rect.left) / rect.width) * 100, // Percentage for responsive positioning
+        y: ((e.clientY - rect.top) / rect.height) * 100,
+        userId: localIdentity,
+        timestamp: Date.now()
+      }
+
+      // Broadcast cursor position (throttle to avoid too many messages)
+      if (Date.now() - (window.lastCursorSend || 0) > 100) {
+        publishData({ type: 'cursorMove', cursor: pos })
+        window.lastCursorSend = Date.now()
+      }
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 0) return
+      const canvas = canvasRef.current
+      if (!canvas) return
+
+      const rect = canvas.getBoundingClientRect()
+      const pos = {
+        x: ((e.touches[0].clientX - rect.left) / rect.width) * 100,
+        y: ((e.touches[0].clientY - rect.top) / rect.height) * 100,
+        userId: localIdentity,
+        timestamp: Date.now()
+      }
+
+      // Broadcast cursor position (throttle to avoid too many messages)
+      if (Date.now() - (window.lastCursorSend || 0) > 100) {
+        publishData({ type: 'cursorMove', cursor: pos })
+        window.lastCursorSend = Date.now()
+      }
+    }
+
+    canvasRef.current.addEventListener('mousemove', handleMouseMove)
+    canvasRef.current.addEventListener('touchmove', handleTouchMove)
+
+    return () => {
+      canvasRef.current?.removeEventListener('mousemove', handleMouseMove)
+      cursorRef.current?.removeEventListener('touchmove', handleTouchMove)
+    }
+  }, [room, localIdentity, publishData])
+
+  const broadcastStroke = useCallback((stroke: WhiteboardStroke) => {
+    publishData({ type: 'whiteboardStroke', stroke })
+  }, [publishData])
 
   const getCanvasPoint = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current
@@ -84,13 +186,15 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
   const stopDrawing = useCallback(() => {
     if (!currentStroke) return
     setStrokes(prev => [...prev, currentStroke])
+    broadcastStroke(currentStroke)
     setCurrentStroke(null)
     setIsDrawing(false)
-  }, [currentStroke])
+  }, [currentStroke, broadcastStroke])
 
   const clearCanvas = () => {
     if (!canDraw) return
     setStrokes([])
+    publishData({ type: 'whiteboardClear' })
   }
 
   const downloadCanvas = () => {
@@ -129,9 +233,36 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
         ctx.beginPath()
         ctx.moveTo(stroke.points[0].x, stroke.points[0].y)
         for (let i = 1; i < stroke.points.length; i++) {
-          ctx.lineTo(stroke.points[i].x, stroke.points[i].y)
+          // Convert percentage coordinates back to pixel coordinates
+          const px = (stroke.points[i].x / 100) * canvas.width
+          const py = (stroke.points[i].y / 100) * canvas.height
+          ctx.lineTo(px, py)
         }
         ctx.stroke()
+      })
+
+      // Draw cursors for other users
+      cursors.forEach(cursor => {
+        // Skip drawing our own cursor
+        if (cursor.userId === localIdentity) return
+
+        // Convert percentage coordinates to pixel coordinates
+        const cx = (cursor.x / 100) * canvas.width
+        const cy = (cursor.y / 100) * canvas.height
+
+        // Draw cursor dot
+        ctx.fillStyle = '#00bfff'
+        ctx.beginPath()
+        ctx.arc(cx, cy, 4, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Draw cursor label
+        ctx.fillStyle = '#ffffff'
+        ctx.font = '10px sans-serif'
+        ctx.textAlign = 'center'
+        // Show abbreviated user ID for privacy
+        const userId = cursor.userId.length > 8 ? cursor.userId.substring(0, 8) + '...' : cursor.userId
+        ctx.fillText(userId, cx, cy - 10)
       })
     }
 
@@ -139,6 +270,69 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
     window.addEventListener('resize', resize)
     return () => window.removeEventListener('resize', resize)
   }, [strokes])
+
+  // Broadcast cursor position
+  useEffect(() => {
+    if (!room || !canvasRef.current) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+
+      const rect = canvas.getBoundingClientRect()
+      const pos = {
+        x: ((e.clientX - rect.left) / rect.width) * 100, // Percentage for responsive positioning
+        y: ((e.clientY - rect.top) / rect.height) * 100,
+        userId: localIdentity,
+        timestamp: Date.now()
+      }
+
+      // Broadcast cursor position (throttle to avoid too many messages)
+      if (Date.now() - (window.lastCursorSend || 0) > 100) {
+        publishData({ type: 'cursorMove', cursor: pos })
+        window.lastCursorSend = Date.now()
+      }
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 0) return
+      const canvas = canvasRef.current
+      if (!canvas) return
+
+      const rect = canvas.getBoundingClientRect()
+      const pos = {
+        x: ((e.touches[0].clientX - rect.left) / rect.width) * 100,
+        y: ((e.touches[0].clientY - rect.top) / rect.height) * 100,
+        userId: localIdentity,
+        timestamp: Date.now()
+      }
+
+      // Broadcast cursor position (throttle to avoid too many messages)
+      if (Date.now() - (window.lastCursorSend || 0) > 100) {
+        publishData({ type: 'cursorMove', cursor: pos })
+        window.lastCursorSend = Date.now()
+      }
+    }
+
+    canvasRef.current.addEventListener('mousemove', handleMouseMove)
+    canvasRef.current.addEventListener('touchmove', handleTouchMove)
+
+    return () => {
+      canvasRef.current?.removeEventListener('mousemove', handleMouseMove)
+      canvasRef.current?.removeEventListener('touchmove', handleTouchMove)
+    }
+  }, [room, localIdentity, publishData])
+
+  // Clean up old cursors
+  useEffect(() => {
+    const cleanupOldCursors = () => {
+      const now = Date.now()
+      setCursors(prev => prev.filter(cursor => now - cursor.timestamp < 3000)) // Remove cursors older than 3 seconds
+    }
+
+    const interval = setInterval(cleanupOldCursors, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   const toolbar = (
     <div className="flex items-center justify-between p-2 border-b border-border-primary glass shrink-0">
@@ -265,7 +459,7 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
 
   if (floating) {
     return createPortal(
-      <DraggablePanel className="w-96" style={{ height: '500px' }}>
+      <DraggablePanel className="w-96 max-w-[90vw] max-h-[90vh]" style={{ height: 'auto', maxHeight: '500px' }}>
         {content}
       </DraggablePanel>,
       document.body
@@ -273,7 +467,7 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
   }
 
   return (
-    <div className="w-full h-full" style={{ display: 'flex', flexDirection: 'column' }}>
+    <div className="w-[600px] h-[400px] max-w-full max-h-[80vh] mx-auto my-4" style={{ display: 'flex', flexDirection: 'column' }}>
       {content}
     </div>
   )
