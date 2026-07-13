@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Mic, Video, Keyboard, Settings, Grid3x3, SplitSquareVertical, Menu, PanelRight, User, BarChart3, Palette, MonitorUp } from 'lucide-react'
+import { X, Mic, MicOff, Video, Keyboard, Settings, Grid3x3, SplitSquareVertical, Menu, PanelRight, User, BarChart3, Palette, MonitorUp } from 'lucide-react'
 import type { TabName, Keybind, GridPreset, SelfViewMode, Stats } from '../types'
 import type { Room } from 'livekit-client'
 import AudioVisualizer from './AudioVisualizer'
@@ -55,16 +55,16 @@ setKeybinds,
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const keybindInputRef = useRef<HTMLButtonElement>(null)
 
-  const tabs: { name: TabName; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
+  const tabs = [
     { name: 'audio', label: 'Audio', icon: Mic },
     { name: 'video', label: 'Video', icon: Video },
     { name: 'keybinds', label: 'Keybinds', icon: Keyboard },
     { name: 'general', label: 'General', icon: Settings },
     { name: 'stats', label: 'Stats', icon: BarChart3 },
     { name: 'screenshare', label: 'Screenshare', icon: MonitorUp },
-    { name: 'chat', label: 'Chat', icon: User }, // Using User icon temporarily, could replace with proper chat icon
-    ...(isHost ? [{ name: 'host-controls', label: 'Host Controls', icon: Settings }] : []), // Only show host controls tab if user is host
-  ]
+    { name: 'chat', label: 'Chat', icon: User },
+    ...(isHost ? [{ name: 'host-controls', label: 'Host Controls', icon: Settings }] : []),
+  ] as const
 
   // Global keydown listener for keybind editing
   useEffect(() => {
@@ -119,6 +119,7 @@ setKeybinds,
   const onSelfViewModeChange = propOnSelfViewModeChange ?? setLocalSelfViewMode
   const gridPreset = propGridPreset ?? localGridPreset
   const onGridPresetChange = propOnGridPresetChange ?? setLocalGridPreset
+  void selfViewMode
 
   // Used in JSX template literals - TypeScript doesn't track this usage
   void gridPreset
@@ -144,7 +145,7 @@ setKeybinds,
           {tabs.map(({ name, label, icon: Icon }) => (
             <button
               key={name}
-              onClick={() => setActiveTab(name)}
+              onClick={() => setActiveTab(name as TabName)}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap $
                 {activeTab === name ? 'bg-bg-tertiary text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'}`}
             >
@@ -313,25 +314,6 @@ setKeybinds,
     </div>
   </div>
 )}
-            <div className="space-y-3">
-              {keybinds.map(k => (
-                <div key={k.id} className="flex items-center justify-between p-3 rounded-xl bg-bg-tertiary border border-border-primary">
-                  <span className="text-sm text-text-primary">{k.label}</span>
-                  <button
-                    ref={editingKey === k.id ? keybindInputRef : undefined}
-                    onClick={e => { e.stopPropagation(); setEditingKey(editingKey === k.id ? null : k.id) }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-colors ${
-                      editingKey === k.id
-                        ? 'bg-haze-500/20 text-haze-400 ring-2 ring-haze-500/50'
-                        : 'bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'
-                    }`}
-                  >
-                    {editingKey === k.id ? 'Press key...' : k.keys}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
 
           {activeTab === 'general' && (
             <div className="flex flex-col gap-6">
@@ -374,104 +356,6 @@ setKeybinds,
                   <Palette size={12} /> Your Color
                 </label>
                 <ColorPicker userColor={userColor} onUserColorChange={onUserColorChange} />
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'general' && (
-            <div className="grid gap-4">
-              <div>
-                <label className="text-xs text-text-muted mb-2 block">Self View Mode</label>
-                <div className="flex gap-2">
-                  {(['grid', 'floating'] as SelfViewMode[]).map(mode => (
-                    <button
-                      key={mode}
-                      onClick={() => onSelfViewModeChange(mode)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-colors text-sm flex-1 ${
-                        selfViewMode === mode
-                          ? 'bg-haze-500/20 border-haze-500/50 text-haze-400'
-                          : 'bg-bg-tertiary border-border-primary text-text-secondary hover:bg-bg-elevated'
-                      }`}
-                    >
-                      <User size={14} /> {mode === 'grid' ? 'In Grid' : 'Floating'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-text-muted mb-2 block">Grid Layout</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {gridPresets.map(({ value, label, icon: Icon }) => (
-                    <button
-                      key={value}
-                      onClick={() => onGridPresetChange(value)}
-                      className={`flex items-center gap-2 p-3 rounded-xl border transition-colors text-sm $
-                        {gridPreset === value
-                          ? 'bg-haze-500/20 border-haze-500/50'
-                          : 'bg-bg-tertiary border-border-primary hover:bg-bg-elevated'}`}
-                    >
-                      <Icon size={16} /> {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-text-muted mb-2 block flex items-center gap-1">
-                  <Palette size={12} /> Your Color
-                </label>
-                <ColorPicker userColor={userColor} onUserColorChange={onUserColorChange} />
-              </div>
-              <div>
-                <label className="text-xs text-text-muted mb-2 block flex items-center gap-1">
-                  <MonitorUp size={12} /> Theme
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { value: 'dark', label: 'Dark', icon: '🌙' },
-                    { value: 'light', label: 'Light', icon: '☀️' },
-                    { value: 'gray', label: 'Gray', icon: '🌑' },
-                  ].map(({ value, label, icon }) => (
-                    <button
-                      key={value}
-                      onClick={() => {
-                        document.documentElement.className = document.documentElement.className.replace(/theme-\w+/g, '')
-                        document.documentElement.classList.add(value === 'dark' ? '' : `theme-${value}`)
-                        localStorage.setItem('theme', value)
-                      }}
-                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-colors text-sm ${
-                        (document.documentElement.classList.contains('theme-light') && value === 'light') ||
-                        (document.documentElement.classList.contains('theme-gray') && value === 'gray') ||
-                        (!document.documentElement.classList.contains('theme-light') && !document.documentElement.classList.contains('theme-gray') && value === 'dark')
-                          ? 'bg-haze-500/20 border-haze-500/50 text-haze-400'
-                          : 'bg-bg-tertiary border-border-primary text-text-secondary hover:bg-bg-elevated'
-                      }`}
-                    >
-                      <span className="text-xl">{icon}</span>
-                      <span>{label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-text-muted mb-2 block flex items-center gap-1">
-                  <MonitorUp size={12} /> Font Size
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min="0.8"
-                    max="1.3"
-                    step="0.05"
-                    value={parseFloat(localStorage.getItem('fontSize') || '0.9375')}
-                    onChange={e => {
-                      const newSize = e.target.value + 'rem'
-                      document.documentElement.style.setProperty('--font-size-base', newSize)
-                      localStorage.setItem('fontSize', e.target.value)
-                    }}
-                    className="flex-1 accent-haze-500 h-1"
-                  />
-                  <span className="text-xs text-text-muted w-10 text-right">{Math.round(parseFloat(localStorage.getItem('fontSize') || '0.9375') * 100)}%</span>
-                </div>
               </div>
             </div>
           )}

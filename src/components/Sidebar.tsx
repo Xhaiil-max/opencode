@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import type { User, ChatMessage, SidebarTab, HostSettings } from '../types'
 import { Mic, MicOff, Video, VideoOff, MonitorUp, MessageSquare, Users, Smile, PenTool, Hand, MoreHorizontal, VolumeX, Trash2, X, Pin } from 'lucide-react'
 
@@ -118,8 +118,8 @@ function ParticipantsTab({
     const current = users.filter(user => user.isLocal)
 
     // Sort pinned and unpinned alphabetically by name
-    pinned.sort((a, b) => a.name.localeCompare(b.name))
-    unpinned.sort((a, b) => a.name.localeCompare(b.name))
+    pinned.sort((a: User, b: User) => a.name.localeCompare(b.name))
+    unpinned.sort((a: User, b: User) => a.name.localeCompare(b.name))
 
     return [...pinned, ...unpinned, ...current]
   }, [users, pinnedUsers])
@@ -141,6 +141,7 @@ function ParticipantsTab({
         const initials = user.name.split(' ').slice(0, 2).map(n => n[0]).join('')
         const userColor = user.color || '#6366f1'
         const isMenuOpen = openMenu === user.id
+        const isPinned = pinnedUsers.includes(user.id)
 
         const handleHostAction = (action: string) => {
           onBroadcastHostAction(`${action}:${user.id}`)

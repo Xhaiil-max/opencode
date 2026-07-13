@@ -323,26 +323,28 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
             sounds.undeafen();
           }
           if (message.type === "userColor" && message.color && message.identity) {
-          setUsers((prev) =>
-            prev.map((u) =>
-              u.id === message.identity ? { ...u, color: message.color } : u
-            )
-          );
-        }
-
-        if (message.type === "deafen" && message.identity !== undefined) {
-          setUsers((prev) =>
-            prev.map((u) =>
-              u.id === message.identity
-                ? { ...u, isDeafened: message.value }
-                : u
-            )
-          );
-          // Play sound for self if we're the one being deafened/undeafened
-          if (participant?.identity === roomRef.current?.localParticipant.identity) {
-            message.value ? sounds.deafen() : sounds.undeafen();
+            setUsers((prev) =>
+              prev.map((u) =>
+                u.id === message.identity ? { ...u, color: message.color } : u
+              )
+            );
           }
-        }
+
+          if (message.type === "deafen" && message.identity !== undefined) {
+            setUsers((prev) =>
+              prev.map((u) =>
+                u.id === message.identity
+                  ? { ...u, isDeafened: message.value }
+                  : u
+              )
+            );
+          }
+
+            // Play sound for self if we're the one being deafened/undeafened
+            if (participant?.identity === roomRef.current?.localParticipant.identity) {
+              message.value ? sounds.deafen() : sounds.undeafen();
+            }
+          }
 
         if (message.type === "whiteboardStroke" && message.stroke) {
           whiteboardCallbacks.current.forEach(cb => cb(message.stroke!));
@@ -350,65 +352,6 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
 
         if (message.type === "whiteboardClear") {
           whiteboardClearCallbacks.current.forEach(cb => cb());
-        }
-
-        if (message.type === "hostAction") {
-          const room = roomRef.current;
-          if (!room || participant?.identity === room.localParticipant.identity) return;
-          const local = room.localParticipant;
-          if (message.action === "muteAll") {
-            local.setMicrophoneEnabled(false);
-            setIsMicOn(false);
-            sounds.mute();
-          }
-          if (message.action === "deafenEveryone") {
-            // Set all users except self to deafened
-            setUsers((prev) =>
-              prev.map((u) =>
-                u.id === roomRef.current?.localParticipant.identity
-                  ? { ...u, isDeafened: false } // Self is never deafened by this command
-                  : { ...u, isDeafened: true }
-              )
-            );
-            // Update local state to reflect that others are deafened (but we can still hear ourselves)
-            // Actually, this is tricky - when a host deafens everyone, it typically means
-            // they can't hear anyone, including themselves in some implementations
-            // For simplicity, we'll just update the UI to show the deafened state
-            setIsDeafened(true);
-            sounds.deafen();
-          }
-          if (message.action === "undeafenEveryone") {
-            // Undo the deafening effect for everyone
-            setUsers((prev) =>
-              prev.map((u) => ({ ...u, isDeafened: false }))
-            );
-            // Update local state
-            setIsDeafened(false);
-            sounds.undeafen();
-          }
-          if (message.action.startsWith("lowerHand:")) {
-            const targetId = message.action.split(":")[1];
-            if (targetId === local.identity) {
-              setIsRaisedHand(false);
-              setUsers((prev) => prev.map((u) => (u.id === targetId ? { ...u, handRaised: false } : u)));
-              sounds.handLower();
-            }
-          }
-          if (message.action.startsWith("muteParticipant:")) {
-            const targetId = message.action.split(":")[1];
-            if (targetId === local.identity) {
-              local.setMicrophoneEnabled(false);
-              setIsMicOn(false);
-              sounds.mute();
-            }
-          }
-          if (message.action.startsWith("disableVideo:")) {
-            const targetId = message.action.split(":")[1];
-            if (targetId === local.identity) {
-              local.setCameraEnabled(false);
-              setIsCamOn(false);
-            }
-          }
         }
       } catch (e) {
         console.error("Failed to parse data message", e);

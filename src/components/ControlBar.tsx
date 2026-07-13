@@ -1,3 +1,4 @@
+import type { GridPreset } from '../types'
 import { useState } from 'react'
 import {
   Mic, MicOff, Video, VideoOff, MonitorUp, Hand, Ear, EarOff,
@@ -71,7 +72,6 @@ export default function ControlBar({
               {audioDevices.length === 0 ? (
                 <p className="text-xs text-text-muted px-3 py-2">No microphones found</p>
               ) : (
-                ): (
                 <div className="absolute bottom-full mb-2 w-64 glass-strong rounded-xl p-2 shadow-2xl z-50 max-h-[80vh] overflow-y-auto">
                   {audioDevices.map(d => (
                     <button
@@ -82,8 +82,8 @@ export default function ControlBar({
                     >
                       {d.label || `Microphone ${d.deviceId.slice(0, 6)}`}
                     </button>
-                  ))
-                )}
+                  ))}
+                </div>
               )}
             </div>
           )}
@@ -103,7 +103,6 @@ export default function ControlBar({
               {videoDevices.length === 0 ? (
                 <p className="text-xs text-text-muted px-3 py-2">No cameras found</p>
               ) : (
-                ): (
                 <div className="absolute bottom-full mb-2 w-64 glass-strong rounded-xl p-2 shadow-2xl z-50 max-h-[80vh] overflow-y-auto">
                   {videoDevices.map(d => (
                     <button
@@ -114,8 +113,8 @@ export default function ControlBar({
                     >
                       {d.label || `Camera ${d.deviceId.slice(0, 6)}`}
                     </button>
-                  ))
-                )}
+                  ))}
+                </div>
               )}
             </div>
           )}

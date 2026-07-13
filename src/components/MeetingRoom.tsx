@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Copy, Check, Wifi, WifiOff, WifiHigh, MoreHorizontal, PenTool, Settings, Users, MessageSquare } from 'lucide-react'
+import { Copy, Check, MoreHorizontal, PenTool, Settings, Users, MessageSquare } from 'lucide-react'
 import type { SelfViewMode, SidebarTab, GridPreset } from '../types'
 import ControlBar from './ControlBar'
 import ParticipantTile from './ParticipantTile'

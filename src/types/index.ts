@@ -16,6 +16,7 @@ export interface User {
   connectionQuality?: number // 0-5, higher is better
   isDeafened?: boolean
   isMutedLocally?: boolean
+  isLocal?: boolean
 }
 
 export interface ScreenShareUser {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import type { User } from '../types'
-import { Mic, MicOff, MonitorUp, Volume2, VolumeX, Eye, EyeOff, MoreVertical, EarOff } from 'lucide-react'
+import { Mic, MicOff, MonitorUp, Volume2, VolumeX, Eye, EyeOff, MoreVertical, EarOff, Video } from 'lucide-react'
 import ParticipantVideo from './ParticipantVideo'
 import AudioVisualizer from './AudioVisualizer'
 import { Track, type Participant } from 'livekit-client'
