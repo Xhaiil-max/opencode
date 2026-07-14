@@ -37,7 +37,7 @@ export default function Landing({ onCreateMeeting, onJoinMeeting, initialRoomId 
             <Sparkles size={40} className="text-bg-primary" />
           </div>
           <h1 className="text-6xl font-display font-bold text-gradient-brand mb-4 tracking-tight">Hazecode</h1>
-          <p className="text-lg text-text-secondary max-w-xl">Secure, high-performance video meetings with collaborative tools built for modern teams.</p>
+          <p className="text-lg text-text-secondary max-w-xl">Jump into safe, smooth video chats with fun collaboration tools for your team.</p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 max-w-5xl w-full mb-16 animate-slide-up">
