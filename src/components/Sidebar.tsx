@@ -104,7 +104,8 @@ const Sidebar = forwardRef<HTMLDivElement, SidebarProps>(function Sidebar({
       </div>
     </div>
   )
-}
+})
+export default Sidebar
 
 function ParticipantsTab({
   users, localIdentity, isLocalHost, onBroadcastHostAction,
@@ -586,5 +587,4 @@ function ToolsTab({
       </div>
     </div>
   )
-})
-export default Sidebar
+}
