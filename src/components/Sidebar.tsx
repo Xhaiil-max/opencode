@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import type { User, ChatMessage, SidebarTab, HostSettings } from '../types'
 import { Mic, MicOff, Video, VideoOff, MonitorUp, MessageSquare, Users, Smile, PenTool, Hand, MoreHorizontal, VolumeX, Trash2, X, Pin, EarOff } from 'lucide-react'
 import { WaveformDots } from './AudioVisualizer'
-import { ChevronDown } from 'lucide-react'
 
 const EMOJIS = ['😀', '😂', '😍', '😎', '👍', '👎', '❤️', '🔥', '🎉', '😢', '😡', '🤔', '😴', '🤯', '👋', '🙏', '💪', '🍕', '☕', '🚀', '✨', '💯', '🤝', '🎯', '💡', '🌟', '⚡', '🎨', '🎮', '🎵']
 
@@ -304,8 +303,6 @@ function ChatTab({ messages, onSend, input, onInputChange, disabled, onPaste, us
   const containerRef = useRef<HTMLDivElement>(null)
   const userScrolledRef = useRef(false)
   const scrollBtnRef = useRef<HTMLButtonElement | null>(null)
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const [newMessageAdded, setNewMessageAdded] = useState(false);
 
   // Filter users for mention (max 10)
   const mentionableUsers = users

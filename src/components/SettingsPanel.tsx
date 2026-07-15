@@ -5,7 +5,6 @@ import type { ScreenShareSettings } from '../utils/screenShare'
 import type { Room } from 'livekit-client'
 import AudioVisualizer from './AudioVisualizer'
 import ParticipantVideo from './ParticipantVideo'
-import { useAudioLevel, useLocalMicStream } from '../hooks/useAudioLevel'
 import ColorPicker from './ColorPicker'
 
 interface SettingsPanelProps {
@@ -51,7 +50,6 @@ export default function SettingsPanel({
   onSwitchAudioDevice,
   onSwitchVideoDevice,
   room,
-  micOn,
   micGain,
   onMicGainChange,
   stats,
@@ -70,6 +68,7 @@ export default function SettingsPanel({
   toggleCameraPermission,
   toggleMicrophonePermission,
   requestMediaPermissions,
+  videoDevices,
   fontSettings,
   setFontSettings,
   theme,
