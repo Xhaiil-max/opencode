@@ -85,6 +85,7 @@ export default function SettingsPanel({
   const [selectedAudioOutput, setSelectedAudioOutput] = useState<string | null>(null)
   const [selectedVideoInput, setSelectedVideoInput] = useState<string | null>(null)
   const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [cameraResolution, setCameraResolution] = useState<string | null>(null)
   const keybindInputRef = useRef<HTMLButtonElement>(null)
 
   // Initialize selected devices from available devices or use 'default'
@@ -384,36 +385,36 @@ export default function SettingsPanel({
                   <label className="text-xs text-text-muted mb-1 block">Resolution</label>
                   <div className="grid grid-cols-2 gap-2">
                     {[
-                      { value: '640x480', label: '480p (640x480)' },
-                      { value: '1280x720', label: '720p (1280x720)' },
-                      { value: '1920x1080', label: '1080p (1920x1080)' },
-                    ].map(({ value, label }) => (
-                      <button
-                        key={value}
-                        onClick={() => {
-                          try {
-                            room?.localParticipant.setCameraEnabled(false)
-                            setTimeout(() => room?.localParticipant.setCameraEnabled(true), 100)
-                          } catch {}
-                        }}
-                        className="px-3 py-2 rounded-xl border transition-colors text-xs bg-bg-tertiary border-border-primary text-text-secondary hover:bg-bg-elevated cursor-pointer"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-text-muted mb-1 block">Aspect Ratio</label>
-                  <div className="flex gap-2">
-                    {['16:9', '4:3', '1:1'].map(ratio => (
-                      <button
-                        key={ratio}
-                        className="px-4 py-2 rounded-xl border transition-colors text-sm bg-bg-tertiary border-border-primary text-text-secondary hover:bg-bg-elevated cursor-pointer"
-                      >
-                        {ratio}
-                      </button>
-                    ))}
+                      { w: 640, h: 480, label: '480p (640x480)' },
+                      { w: 1280, h: 720, label: '720p (1280x720)' },
+                      { w: 1920, h: 1080, label: '1080p (1920x1080)' },
+                    ].map(({ w, h, label }) => {
+                      const isActive = cameraResolution === `${w}x${h}`
+                      return (
+                        <button
+                          key={label}
+                          onClick={async () => {
+                            try {
+                              setCameraResolution(`${w}x${h}`)
+                              // Disable camera first, then re-enable with new resolution
+                              await room?.localParticipant.setCameraEnabled(false)
+                              setTimeout(async () => {
+                                await room?.localParticipant.setCameraEnabled(true, {
+                                  resolution: { width: w, height: h }
+                                })
+                              }, 200)
+                            } catch {}
+                          }}
+                          className={`px-3 py-2 rounded-xl border transition-colors text-xs cursor-pointer ${
+                            isActive
+                              ? 'bg-haze-500/20 border-haze-500/50 text-haze-400'
+                              : 'bg-bg-tertiary border-border-primary text-text-secondary hover:bg-bg-elevated'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
