@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Copy, Check, MoreHorizontal, PenTool, Settings, Users, MessageSquare } from 'lucide-react'
-import type { SelfViewMode, SidebarTab, GridPreset, ScreenShareUser } from '../types'
+import { Copy, Check, MoreHorizontal, PenTool, Settings, Users, MessageSquare, X } from 'lucide-react'
+import type { SelfViewMode, SidebarTab, GridPreset, ScreenShareUser, User } from '../types'
 import { Track } from 'livekit-client'
 import ControlBar from './ControlBar'
 import ParticipantTile from './ParticipantTile'
@@ -239,14 +239,12 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
     )
   }
 
-  const { screenShares } = lk
+  const { screenShares, pinnedParticipantId } = lk
   const pinnedUser = pinnedParticipantId ? lk.users.find(u => u.id === pinnedParticipantId) : null
-  const pinnedScreenShare = pinnedParticipantId ? screenShares.find(ss => ss.presenterId === pinnedParticipantId) : null
 
   // Determine the "featured" tile for spotlight/speaker/sidebar modes
   const featuredIdentity = pinnedParticipantId ?? (screenShares.length > 0 ? screenShares[0].presenterId : null)
   const featuredUser = featuredIdentity ? lk.users.find(u => u.id === featuredIdentity) : null
-  const featuredScreenShare = featuredIdentity ? screenShares.find(ss => ss.presenterId === featuredIdentity) : null
 
   const simpleUsers = sortedRemote.filter(u => {
     if (featuredIdentity && u.id === featuredIdentity) return false

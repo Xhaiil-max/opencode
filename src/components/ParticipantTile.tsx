@@ -137,9 +137,9 @@ export default function ParticipantTile({ user, isCurrent, isDeafened, participa
 
   // Auto-pin screen-share presenters when they start sharing and aren't pinned yet
   useEffect(() => {
-    if (!isScreenShare || !participant || pinnedParticipantId === participant?.id || !pinParticipant) return
+    if (!isScreenShare || !participant || pinnedParticipantId === participant.identity || !pinParticipant) return
     // If this participant is currently presenting their screen and isn't pinned, pin them automatically
-    pinParticipant?.(participant?.id)
+    pinParticipant?.(participant.identity)
   }, [isScreenShare, participant, pinnedParticipantId, pinParticipant])
 
   // Smooth, low-latency speaking glow that scales with audio level
