@@ -84,7 +84,7 @@ export default function ControlBar({
   }, [showMicOptions, showCamOptions, showGridOptions])
 
   return (
-    <div ref={podRef} className="flex items-center justify-center gap-1.5 p-3 shrink-0">
+    <div ref={podRef} data-control-bar className="flex items-center justify-center gap-1.5 p-3 shrink-0">
       <div className="flex items-center gap-1 glass p-1.5 rounded-2xl border border-border-primary/50 backdrop-blur">
         <ButtonGroup
           label={isMicOn ? 'Mute' : 'Unmute'}

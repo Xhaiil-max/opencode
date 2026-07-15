@@ -19,7 +19,7 @@ export default function ScreenshareModal({ onClose, onStartScreenShare }: Screen
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-      <div className="glass-card w-full max-w-lg mx-4 animate-scale-in" onClick={e => e.stopPropagation()}>
+      <div className="glass-card w-full max-w-lg mx-4 animate-slide-up" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4 border-b border-border-primary">
           <h2 className="text-lg font-display font-medium">Share Screen</h2>
           <button onClick={onClose} className="btn-ghost btn-icon-sm"><X size={18} /></button>

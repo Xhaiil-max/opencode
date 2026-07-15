@@ -133,13 +133,25 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
     return () => window.removeEventListener('whiteboardToggle', handleWhiteboardToggle as EventListener);
   }, []);
 
+  // Handle poll creation from tools tab
+  useEffect(() => {
+    const handleSendChatMessage = (e: CustomEvent) => {
+      if (e.detail) {
+        lk.sendMessage?.(e.detail);
+      }
+    };
+    window.addEventListener('sendChatMessage', handleSendChatMessage as EventListener);
+    return () => window.removeEventListener('sendChatMessage', handleSendChatMessage as EventListener);
+  }, [lk.sendMessage]);
+
   // Close sidebar when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (sidebarRef.current && !sidebarRef.current.contains(e.target as Node)) {
-        // Check if click is on the control bar buttons that open the sidebar
         const target = e.target as HTMLElement
+        // Don't close if clicking on control bar buttons or sidebar trigger buttons
         if (target.closest('[data-sidebar-trigger]')) return
+        if (target.closest('[data-control-bar]')) return
         setSidebarOpen(false)
       }
     }
@@ -305,7 +317,7 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
   }
 
   const selfTile = selfViewMode === 'grid' && (
-    <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} isSpeaking={isSpeaking} />
+    <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} isSpeaking={isSpeaking} isRaisedHand={lk.isRaisedHand} />
   )
 
   const renderGrid = () => {
@@ -375,7 +387,6 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
 
       case 'tiled':
       default: {
-        // Tiled mode: screenshares take full-width prominence, others in grid
         const otherUsers = simpleUsers.filter(u => {
           if (hasSS && screenShares.some(ss => ss.presenterId === u.id)) return false
           return u.id !== featuredIdentity
@@ -384,7 +395,7 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
         return (
           <>
             {hasSS && (
-              <div className="col-span-full" style={{ maxHeight: '50vh' }}>
+              <div className="col-span-full" style={{ maxHeight: '35vh', minHeight: '160px' }}>
                 <div className="grid gap-2 h-full" style={{
                   gridTemplateColumns: `repeat(${Math.min(screenShares.length, 2)}, 1fr)`,
                 }}>
@@ -393,17 +404,12 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
               </div>
             )}
             {pinnedUser && !hasSS && (
-              <div className="col-span-full" style={{ maxHeight: '40vh' }}>
+              <div className="col-span-full" style={{ maxHeight: '30vh', minHeight: '120px' }}>
                 {renderParticipantTile(pinnedUser)}
               </div>
             )}
-            <div className="grid gap-2" style={{
-              gridTemplateColumns: `repeat(auto-fill, minmax(${240 * tileScale / 100}px, 1fr))`,
-              alignContent: 'start',
-            }}>
-              {otherUsers.map(renderParticipantTile)}
-              {selfTile}
-            </div>
+            {otherUsers.map(renderParticipantTile)}
+            {selfTile}
           </>
         )
       }
@@ -415,7 +421,7 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
       <LocalIdentityContext.Provider value={username}>
         <div className="flex h-screen bg-bg-primary overflow-hidden">
           <div className="flex-1 flex flex-col relative">
-            <div className="flex items-center justify-between px-4 py-2 glass-strong/50 border-b border-border-primary shrink-0">
+            <div className="flex items-center justify-between px-3 py-1.5 glass-strong/50 border-b border-border-primary shrink-0">
               <span className="text-sm text-text-secondary">
                 Meeting: <code className="text-text-primary font-mono">{roomName}</code>
               </span>
@@ -441,7 +447,7 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
                   </button>
 
                   {showUnifiedMenu && (
-                    <div className="absolute right-0 top-full mt-2 z-30 glass-strong rounded-xl p-2 shadow-2xl min-w-[180px] animate-fade-in">
+                    <div className="absolute right-0 top-full mt-2 z-30 glass-strong rounded-xl p-2 shadow-2xl min-w-[180px] animate-slide-up">
                       <div className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-bg-tertiary transition-colors cursor-pointer" onClick={() => { setShowWhiteboard(!showWhiteboard); setShowUnifiedMenu(false); }}>
                         <PenTool size={18} className="text-haze-400" />
                         <span className="text-sm font-medium text-text-primary">Whiteboard</span>
@@ -514,16 +520,20 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
               </div>
             )}
 
-            <div className="flex-1 p-4 overflow-auto">
-              <div
-                className="w-full h-full grid gap-2"
-                style={{
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+            <div className="flex-1 p-4 overflow-hidden">
+              {gridPreset === 'tiled' ? (
+                <div className="w-full h-full grid gap-2" style={{
+                  gridTemplateColumns: `repeat(auto-fill, minmax(${200 * tileScale / 100}px, 1fr))`,
                   gridAutoRows: `minmax(${120 * tileScale / 100}px, auto)`,
-                }}
-              >
-                {renderGrid()}
-              </div>
+                  alignContent: 'start',
+                }}>
+                  {renderGrid()}
+                </div>
+              ) : (
+                <div className="w-full h-full">
+                  {renderGrid()}
+                </div>
+              )}
             </div>
 
             {selfViewMode === 'floating' && (

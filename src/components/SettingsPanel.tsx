@@ -128,7 +128,6 @@ export default function SettingsPanel({
     { name: 'stats', label: 'Stats', icon: BarChart3 },
     { name: 'screenshare', label: 'Screenshare', icon: MonitorUp },
     { name: 'theme', label: 'Theme', icon: Palette },
-    { name: 'chat', label: 'Chat', icon: User },
     ...(isHost ? [{ name: 'host-controls', label: 'Host Controls', icon: Settings }] : []),
   ] as const
 
@@ -217,7 +216,7 @@ export default function SettingsPanel({
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
-      <div className="glass-card w-full max-w-3xl mx-4 flex flex-col max-h-[85vh] animate-scale-in" onClick={e => e.stopPropagation()}>
+      <div className="glass-card w-full mx-4 flex flex-col max-h-[85vh] animate-slide-up" style={{ maxWidth: '760px', minHeight: '520px' }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4 border-b border-border-primary shrink-0">
           <h2 className="text-lg font-display font-medium">Settings</h2>
           <button onClick={onClose} className="btn-ghost btn-icon-sm" aria-label="Close">
@@ -378,6 +377,46 @@ export default function SettingsPanel({
                   )}
                 </select>
               </div>
+
+              <div className="border-t border-border-primary pt-4 space-y-4">
+                <h4 className="text-sm font-medium text-text-primary">Camera Quality</h4>
+                <div>
+                  <label className="text-xs text-text-muted mb-1 block">Resolution</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { value: '640x480', label: '480p (640x480)' },
+                      { value: '1280x720', label: '720p (1280x720)' },
+                      { value: '1920x1080', label: '1080p (1920x1080)' },
+                    ].map(({ value, label }) => (
+                      <button
+                        key={value}
+                        onClick={() => {
+                          try {
+                            room?.localParticipant.setCameraEnabled(false)
+                            setTimeout(() => room?.localParticipant.setCameraEnabled(true), 100)
+                          } catch {}
+                        }}
+                        className="px-3 py-2 rounded-xl border transition-colors text-xs bg-bg-tertiary border-border-primary text-text-secondary hover:bg-bg-elevated cursor-pointer"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-text-muted mb-1 block">Aspect Ratio</label>
+                  <div className="flex gap-2">
+                    {['16:9', '4:3', '1:1'].map(ratio => (
+                      <button
+                        key={ratio}
+                        className="px-4 py-2 rounded-xl border transition-colors text-sm bg-bg-tertiary border-border-primary text-text-secondary hover:bg-bg-elevated cursor-pointer"
+                      >
+                        {ratio}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -474,10 +513,36 @@ export default function SettingsPanel({
                 </div>
               </div>
               <div>
-                <label className="text-xs text-text-muted mb-2 block flex-items-center gap-1">
+                <label className="text-xs text-text-muted mb-2 block flex items-center gap-1">
                   <Palette size={12} /> Your Color
                 </label>
                 <ColorPicker userColor={userColor} onUserColorChange={onUserColorChange} />
+              </div>
+              <div>
+                <label className="text-xs text-text-muted mb-2 block flex items-center gap-1">
+                  <Palette size={12} /> Accent Theme
+                </label>
+                <div className="flex gap-3">
+                  {[
+                    { name: 'Haze', primary: '#6366f1', hover: '#4f46e5' },
+                    { name: 'Violet', primary: '#8b5cf6', hover: '#7c3aed' },
+                    { name: 'Rose', primary: '#f43f5e', hover: '#e11d48' },
+                    { name: 'Emerald', primary: '#10b981', hover: '#059669' },
+                    { name: 'Amber', primary: '#f59e0b', hover: '#d97706' },
+                    { name: 'Sky', primary: '#0ea5e9', hover: '#0284c7' },
+                  ].map(color => (
+                    <button
+                      key={color.name}
+                      onClick={() => {
+                        document.documentElement.style.setProperty('--color-accent-primary', color.primary)
+                        document.documentElement.style.setProperty('--color-accent-primary-hover', color.hover)
+                      }}
+                      className="w-8 h-8 rounded-full border-2 border-border-primary hover:scale-110 transition-transform cursor-pointer"
+                      style={{ backgroundColor: color.primary }}
+                      title={color.name}
+                    />
+                  ))}
+                </div>
               </div>
               <div>
                 <label className="text-xs text-text-muted mb-2 block font-semibold flex items-center gap-1">
@@ -655,34 +720,6 @@ export default function SettingsPanel({
                       title={color.name}
                     />
                   ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'chat' && (
-            <div className="flex flex-col gap-4">
-              <div className="border-t border-border-primary pt-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">Chat</h3>
-                  <button onClick={onClose} className="btn-ghost btn-icon-sm">
-                    <X size={20} />
-                  </button>
-                </div>
-                <div className="flex-1 flex flex-col">
-                  <div className="flex-1 overflow-y-auto space-y-3 pb-4">
-                    <div className="text-center text-text-muted py-8">
-                      No messages yet
-                    </div>
-                  </div>
-                  <div className="flex gap-2 pt-4 border-t border-border-primary">
-                    <input
-                      type="text"
-                      placeholder="Type a message..."
-                      className="flex-1 input placeholder:text-text-secondary"
-                    />
-                    <button className="btn-primary px-4 py-2">Send</button>
-                  </div>
                 </div>
               </div>
             </div>

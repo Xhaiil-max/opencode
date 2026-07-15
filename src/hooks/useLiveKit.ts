@@ -107,7 +107,7 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
   const [hostSettings, setHostSettings] = useState<HostSettings>(DEFAULT_HOST_SETTINGS);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
-  const [micGain, setMicGainState] = useState(100);
+  const [micGain, setMicGainState] = useState(50);
   const [soundVolume, setSoundVolumeState] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('soundVolume')
@@ -371,6 +371,15 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
         }
 
         if (message.type === "hostAction") {
+          // Pin/unpin must be processed by sender too (for local UI state)
+          if (message.action.startsWith("pinParticipant:")) {
+            const targetId = message.action.split(":")[1];
+            setPinnedParticipantId(targetId);
+          }
+          if (message.action.startsWith("unpinParticipant:")) {
+            setPinnedParticipantId(null);
+          }
+
           const room = roomRef.current;
           if (!room || participant?.identity === room.localParticipant.identity) return;
           const local = room.localParticipant;
@@ -438,13 +447,6 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
             // Update local state
             setIsDeafened(false);
             sounds.undeafen();
-          }
-          if (message.action.startsWith("pinParticipant:")) {
-            const targetId = message.action.split(":")[1];
-            setPinnedParticipantId(targetId);
-          }
-          if (message.action.startsWith("unpinParticipant:")) {
-            setPinnedParticipantId(null);
           }
           if (message.action === "toggleWhiteboard") {
             window.dispatchEvent(new CustomEvent('whiteboardToggle', { detail: { open: true } }));
@@ -1021,10 +1023,13 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
   }, [publishData]);
 
   const pinParticipant = useCallback(async (identity: string) => {
+    // LiveKit doesn't echo data messages to sender, so set local state directly
+    setPinnedParticipantId(identity);
     await publishData({ type: "hostAction", action: `pinParticipant:${identity}` });
   }, [publishData]);
 
   const unpinParticipant = useCallback(async (identity: string) => {
+    setPinnedParticipantId(null);
     await publishData({ type: "hostAction", action: `unpinParticipant:${identity}` });
   }, [publishData]);
 
