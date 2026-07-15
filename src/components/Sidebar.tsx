@@ -438,7 +438,8 @@ function ChatTab({ messages, onSend, input, onInputChange, disabled, onPaste, us
     );
   }
 
-  return (\n\n  useEffect(() => {\n    if (newMessageAdded && messagesContainerRef.current) {\n      messagesContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });\n      setNewMessageAdded(false);\n    }\n  }, [newMessageAdded]);\n\n    <div className="flex-1 flex flex-col min-h-0 relative">
+  return (
+    <div className="flex-1 flex flex-col min-h-0 relative">
       <div 
         ref={containerRef}
         className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin"
@@ -469,9 +470,7 @@ function ChatTab({ messages, onSend, input, onInputChange, disabled, onPaste, us
           </svg>
         </button>
       )}
-        <ChevronDown className="absolute bottom-16 right-3 text-text-primary hover:text-haze-400 transition-colors z-10" />
-      
-      <div className="p-3 border-t border-border-primary shrink-0 relative">
+        <div className="p-3 border-t border-border-primary shrink-0 relative">
         {disabled ? (
           <p className="text-xs text-text-muted text-center py-2">Chat is disabled by host</p>
         ) : (

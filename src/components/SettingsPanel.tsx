@@ -591,7 +591,7 @@ export default function SettingsPanel({
               <div className="grid grid-cols-3 gap-4">
                 <div className="p-3 rounded-xl bg-bg-tertiary border border-border-primary">
                   <div className="text-xs text-text-muted mb-1">Audio</div>
-                  <div className="text-sm font-mono">In: {stats.audio.inputLevel}%</div>inputLevel}%</div>
+                  <div className="text-sm font-mono">In: {stats.audio.inputLevel}%</div>
                   <div className="text-sm font-mono">Out: {stats.audio.outputLevel}%</div>
                   <div className="text-sm font-mono">Loss: {stats.audio.packetLoss.toFixed(1)}%</div>
                   <div className="text-sm font-mono">Jitter: {stats.audio.jitter.toFixed(1)}ms</div>
