@@ -128,7 +128,7 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
   fontSettingsRef.current = fontSettings;
   useEffect(() => {
     const root = document.documentElement;
-    root.classList.remove('theme-light', 'theme-gray');
+    // Don't touch theme classes here — the theme effect handles those
     if (fontSettings.highContrast) root.classList.add('theme-high-contrast');
     else root.classList.remove('theme-high-contrast');
     const sizeMap: Record<string, string> = { small: '0.8125rem', medium: '0.9375rem', large: '1.0625rem', xlarge: '1.1875rem' };
@@ -549,10 +549,8 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
             setScreenShares(prev => [...prev.filter(s => s.id !== ssUser.id), ssUser]);
             if (participant.identity === room.localParticipant.identity) setIsSharing(true);
             else sounds.screenShareStart();
-            // Auto-pin the screen share presenter
-            if (participant.identity !== room.localParticipant.identity) {
-              pinParticipant(participant.identity);
-            }
+            // Auto-pin the screen share presenter for everyone
+            pinParticipant(participant.identity);
           }
         });
 
@@ -574,12 +572,26 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
           }
         });
 
-        room.on(RoomEvent.LocalTrackPublished, () => {
+        room.on(RoomEvent.LocalTrackPublished, (pub) => {
           const local = room.localParticipant;
           setIsMicOn(local.isMicrophoneEnabled);
           setIsCamOn(local.isCameraEnabled);
           setIsSharing(local.isScreenShareEnabled);
           addOrUpdateUser(local);
+          // Also add local screen share as a separate tile
+          if (pub.source === Track.Source.ScreenShare) {
+            const ssUser: ScreenShareUser = {
+              id: `${local.identity}-screenshare`,
+              presenterId: local.identity,
+              presenterName: local.name || local.identity,
+              presenterColor: getUserColor(local.identity),
+              isSpeaking: local.isSpeaking,
+              audioLevel: Math.round((local.audioLevel ?? 0) * 100),
+              isLocal: local.isLocal,
+            };
+            setScreenShares(prev => [...prev.filter(s => s.id !== ssUser.id), ssUser]);
+            pinParticipant(local.identity);
+          }
         });
 
         room.on(RoomEvent.LocalTrackUnpublished, () => {

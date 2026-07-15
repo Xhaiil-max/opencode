@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Copy, Check, MoreHorizontal, PenTool, Settings, Users, MessageSquare } from 'lucide-react'
-import type { SelfViewMode, SidebarTab, GridPreset } from '../types'
+import type { SelfViewMode, SidebarTab, GridPreset, ScreenShareUser } from '../types'
 import { Track } from 'livekit-client'
 import ControlBar from './ControlBar'
 import ParticipantTile from './ParticipantTile'
@@ -116,6 +116,7 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
   const [linkCopied, setLinkCopied] = useState(false)
   const [showWhiteboard, setShowWhiteboard] = useState(false)
   const [showUnifiedMenu, setShowUnifiedMenu] = useState(false)
+  const [tileScale, setTileScale] = useState(100)
   const unifiedMenuRef = useRef<HTMLDivElement>(null)
   const sidebarRef = useRef<HTMLDivElement>(null)
 
@@ -239,80 +240,176 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
   }
 
   const { screenShares } = lk
+  const pinnedUser = pinnedParticipantId ? lk.users.find(u => u.id === pinnedParticipantId) : null
+  const pinnedScreenShare = pinnedParticipantId ? screenShares.find(ss => ss.presenterId === pinnedParticipantId) : null
 
-  const renderGrid = () => {
+  // Determine the "featured" tile for spotlight/speaker/sidebar modes
+  const featuredIdentity = pinnedParticipantId ?? (screenShares.length > 0 ? screenShares[0].presenterId : null)
+  const featuredUser = featuredIdentity ? lk.users.find(u => u.id === featuredIdentity) : null
+  const featuredScreenShare = featuredIdentity ? screenShares.find(ss => ss.presenterId === featuredIdentity) : null
+
+  const simpleUsers = sortedRemote.filter(u => {
+    if (featuredIdentity && u.id === featuredIdentity) return false
+    if (screenShares.some(ss => ss.presenterId === u.id)) return false
+    return true
+  })
+
+  const renderParticipantTile = (user: User) => (
+    <ParticipantTile
+      key={user.id}
+      user={user}
+      isDeafened={lk.isDeafened}
+      isLocalHost={lk.isLocalHost}
+      muteParticipant={lk.muteParticipant}
+      deafenParticipant={lk.deafenParticipant}
+      disableVideo={lk.disableVideo}
+      pinnedParticipantId={lk.pinnedParticipantId}
+      pinParticipant={lk.pinParticipant}
+      unpinParticipant={lk.unpinParticipant}
+    />
+  )
+
+  const renderScreenShareTile = (ss: ScreenShareUser) => {
+    const presenterParticipant = ss.presenterId === lk.room?.localParticipant.identity
+      ? lk.room?.localParticipant
+      : lk.room?.remoteParticipants.get(ss.presenterId) ?? null
     return (
-      <>
-        {sortedRemote.map(u => <ParticipantTile
-          key={u.id}
-          user={u}
-          isDeafened={lk.isDeafened}
-          isLocalHost={lk.isLocalHost}
-          muteParticipant={lk.muteParticipant}
-          deafenParticipant={lk.deafenParticipant}
-          disableVideo={lk.disableVideo}
-          pinnedParticipantId={lk.pinnedParticipantId}
-          pinParticipant={lk.pinParticipant}
-          unpinParticipant={lk.unpinParticipant}
-        />)}
-        {screenShares.map(ss => {
-            const presenterParticipant = ss.presenterId === lk.room?.localParticipant.identity
-              ? lk.room?.localParticipant
-              : lk.room?.remoteParticipants.get(ss.presenterId) ?? null
-            return (
-              <ParticipantTile
-                key={ss.id}
-                user={{
-                  id: ss.id,
-                  name: `${ss.presenterName}'s Screen`,
-                  micOn: false,
-                  camOn: false,
-                  handRaised: false,
-                  isSharing: true,
-                  isSpeaking: ss.isSpeaking,
-                  audioLevel: ss.audioLevel,
-                  volume: 80,
-                  localVideoDisabled: false,
-                  localScreenshareDisabled: false,
-                  isHost: false,
-                  color: ss.presenterColor,
-                  connectionQuality: 5,
-                }}
-                isDeafened={lk.isDeafened}
-                participant={presenterParticipant}
-                source={Track.Source.ScreenShare}
-                isLocalHost={lk.isLocalHost}
-                muteParticipant={lk.muteParticipant}
-                deafenParticipant={lk.deafenParticipant}
-                disableVideo={lk.disableVideo}
-                pinnedParticipantId={lk.pinnedParticipantId}
-                pinParticipant={lk.pinParticipant}
-                unpinParticipant={lk.unpinParticipant}
-              />
-            )
-          })}
-        {selfViewMode === 'grid' && (
-          <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} isSpeaking={isSpeaking} />
-        )}
-      </>
+      <ParticipantTile
+        key={ss.id}
+        user={{
+          id: ss.id,
+          name: `${ss.presenterName}'s Screen`,
+          micOn: false,
+          camOn: false,
+          handRaised: false,
+          isSharing: true,
+          isSpeaking: ss.isSpeaking,
+          audioLevel: ss.audioLevel,
+          volume: 80,
+          localVideoDisabled: false,
+          localScreenshareDisabled: false,
+          isHost: false,
+          color: ss.presenterColor,
+          connectionQuality: 5,
+        }}
+        isDeafened={lk.isDeafened}
+        participant={presenterParticipant}
+        source={Track.Source.ScreenShare}
+        isLocalHost={lk.isLocalHost}
+        muteParticipant={lk.muteParticipant}
+        deafenParticipant={lk.deafenParticipant}
+        disableVideo={lk.disableVideo}
+        pinnedParticipantId={lk.pinnedParticipantId}
+        pinParticipant={lk.pinParticipant}
+        unpinParticipant={lk.unpinParticipant}
+      />
     )
   }
-        </>
-      )
-    }
 
-    // Tiled mode (default): all participants in a grid, screen shares take max space
-    return (
-      <>
-        {hasScreenShare && (
-          <div className="col-span-full">
-            {screenTiles}
+  const selfTile = selfViewMode === 'grid' && (
+    <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} isSpeaking={isSpeaking} />
+  )
+
+  const renderGrid = () => {
+    const hasSS = screenShares.length > 0
+
+    switch (gridPreset) {
+      case 'speaker': {
+        // Only show the featured speaker/screenshare, nothing else
+        if (hasSS) {
+          return (
+            <div className="col-span-full row-span-full h-full">
+              {screenShares.map(renderScreenShareTile)}
+            </div>
+          )
+        }
+        if (featuredUser) {
+          return (
+            <div className="col-span-full row-span-full h-full">
+              {renderParticipantTile(featuredUser)}
+            </div>
+          )
+        }
+        // Fallback: show all
+        return (
+          <>
+            {simpleUsers.map(renderParticipantTile)}
+            {selfTile}
+          </>
+        )
+      }
+
+      case 'spotlight':
+      case 'sidebar': {
+        // Featured takes 2/3 (spotlight) or 3/4 (sidebar), others in a side column
+        const featuredRatio = gridPreset === 'spotlight' ? '2fr' : '3fr'
+        const hasFeatured = hasSS || !!featuredUser
+        const otherUsers = simpleUsers.filter(u => u.id !== featuredIdentity)
+        const showOthers = otherUsers.length > 0 || !!selfTile
+
+        return (
+          <div className="h-full grid gap-2" style={{
+            gridTemplateColumns: hasFeatured && showOthers ? `${featuredRatio} 1fr` : '1fr',
+            gridTemplateRows: '1fr',
+          }}>
+            <div className="grid gap-2 overflow-auto min-h-0" style={{
+              gridTemplateColumns: hasSS ? '1fr' : 'repeat(auto-fill, minmax(200px, 1fr))',
+              gridTemplateRows: hasSS ? '1fr' : 'auto',
+              alignContent: 'start',
+            }}>
+              {hasSS ? screenShares.map(renderScreenShareTile) : null}
+              {!hasSS && featuredUser ? renderParticipantTile(featuredUser) : null}
+              {!hasSS && !featuredUser ? simpleUsers.map(renderParticipantTile) : null}
+            </div>
+            {showOthers && (
+              <div className="grid gap-2 overflow-auto min-h-0" style={{
+                gridTemplateColumns: '1fr',
+                gridTemplateRows: 'repeat(auto-fill, minmax(120px, 1fr))',
+                alignContent: 'start',
+              }}>
+                {otherUsers.map(renderParticipantTile)}
+                {selfTile}
+              </div>
+            )}
           </div>
-        )}
-        {participantTiles}
-        {selfTile}
-      </>
-    )
+        )
+      }
+
+      case 'tiled':
+      default: {
+        // Tiled mode: screenshares take full-width prominence, others in grid
+        const otherUsers = simpleUsers.filter(u => {
+          if (hasSS && screenShares.some(ss => ss.presenterId === u.id)) return false
+          return u.id !== featuredIdentity
+        })
+
+        return (
+          <>
+            {hasSS && (
+              <div className="col-span-full" style={{ maxHeight: '50vh' }}>
+                <div className="grid gap-2 h-full" style={{
+                  gridTemplateColumns: `repeat(${Math.min(screenShares.length, 2)}, 1fr)`,
+                }}>
+                  {screenShares.map(renderScreenShareTile)}
+                </div>
+              </div>
+            )}
+            {pinnedUser && !hasSS && (
+              <div className="col-span-full" style={{ maxHeight: '40vh' }}>
+                {renderParticipantTile(pinnedUser)}
+              </div>
+            )}
+            <div className="grid gap-2" style={{
+              gridTemplateColumns: `repeat(auto-fill, minmax(${240 * tileScale / 100}px, 1fr))`,
+              alignContent: 'start',
+            }}>
+              {otherUsers.map(renderParticipantTile)}
+              {selfTile}
+            </div>
+          </>
+        )
+      }
+    }
   }
 
   return (
@@ -327,7 +424,7 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleCopyLink}
-                  className="btn-secondary btn-sm gap-1.5"
+                  className="btn-secondary btn-sm gap-1.5 rounded-full"
                   title="Copy meeting link"
                 >
                   {linkCopied ? <Check size={14} className="text-accent-success" /> : <Copy size={14} />}
@@ -421,12 +518,14 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
 
             <div className="flex-1 p-4 overflow-auto">
               <div
-                className="w-full grid gap-2 h-full"
+                className="w-full h-full grid gap-2"
                 style={{
-                  gridTemplateColumns: gridPreset === 'spotlight' ? '2fr 1fr' : gridPreset === 'sidebar' ? '3fr 1fr' : 'repeat(auto-fill, minmax(240px, 1fr))',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                  gridAutoRows: `minmax(${120 * tileScale / 100}px, auto)`,
                 }}
               >
                 {renderGrid()}
+              </div>
             </div>
 
             {selfViewMode === 'floating' && (
@@ -514,11 +613,12 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
           )}
 
           {showWhiteboard && (
-            <Whiteboard 
-              isOpen={showWhiteboard} 
+            <Whiteboard
+              isOpen={showWhiteboard}
               onClose={() => setShowWhiteboard(false)}
               disableWhiteboardDrawing={lk.hostSettings.disableWhiteboardDrawing}
               isLocalHost={lk.isLocalHost}
+              users={lk.users}
             />
           )}
           {showSettings && (
@@ -545,18 +645,19 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
               gridPreset={gridPreset}
               onGridPresetChange={setGridPreset}
               isHost={lk.isLocalHost}
-              // Host control functions
               muteAllParticipants={lk.muteAllParticipants}
               toggleScreenSharePermission={lk.toggleScreenSharePermission}
               toggleCameraPermission={lk.toggleCameraPermission}
               toggleMicrophonePermission={lk.toggleMicrophonePermission}
-              // Device functions
               requestMediaPermissions={lk.requestMediaPermissions}
-              // Theme + screenshare settings persistence
               theme={lk.theme}
               onThemeChange={lk.setTheme}
               screenShareSettings={lk.screenShareSettings}
               onScreenShareSettingsChange={lk.setScreenShareSettings}
+              fontSettings={lk.fontSettings}
+              setFontSettings={lk.setFontSettings}
+              tileScale={tileScale}
+              onTileScaleChange={setTileScale}
             />
           )}
         </div>

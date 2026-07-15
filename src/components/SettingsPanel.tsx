@@ -41,6 +41,8 @@ interface SettingsPanelProps {
   onThemeChange?: (t: ThemeName) => void
   screenShareSettings?: ScreenShareSettings
   onScreenShareSettingsChange?: (s: ScreenShareSettings) => void
+  tileScale?: number
+  onTileScaleChange?: (scale: number) => void
 }
 export default function SettingsPanel({
   onClose,
@@ -75,6 +77,8 @@ export default function SettingsPanel({
   onThemeChange,
   screenShareSettings,
   onScreenShareSettingsChange,
+  tileScale = 100,
+  onTileScaleChange,
 }: SettingsPanelProps) {
   const [activeTab, setActiveTab] = useState<TabName>('audio')
   const [selectedAudioInput, setSelectedAudioInput] = useState<string | null>(null)
@@ -183,6 +187,7 @@ export default function SettingsPanel({
   const onSelfViewModeChange = propOnSelfViewModeChange ?? (() => {})
   const gridPreset = propGridPreset ?? 'tiled'
   const onGridPresetChange = propOnGridPresetChange ?? (() => {})
+  const localFontSettings = fontSettings ?? { fontFamily: 'system', fontSize: 'medium', highContrast: false }
 
   const getLocalUserAudioLevel = (): number => {
     // Try to get audio level from room's local participant
@@ -211,8 +216,8 @@ export default function SettingsPanel({
   ]
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
-      <div className="glass-card w-full max-w-3xl mx-4 flex flex-col max-h-[85vh] animate-scale-in">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
+      <div className="glass-card w-full max-w-3xl mx-4 flex flex-col max-h-[85vh] animate-scale-in" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4 border-b border-border-primary shrink-0">
           <h2 className="text-lg font-display font-medium">Settings</h2>
           <button onClick={onClose} className="btn-ghost btn-icon-sm" aria-label="Close">
@@ -462,6 +467,13 @@ export default function SettingsPanel({
                 </div>
               </div>
               <div>
+                <label className="text-xs text-text-muted mb-2 block">Tile Size</label>
+                <div className="flex items-center gap-3">
+                  <input type="range" min="50" max="150" value={tileScale} onChange={e => onTileScaleChange?.(Number(e.target.value))} className="flex-1 accent-haze-500 h-1" />
+                  <span className="text-xs font-mono text-text-secondary w-10 text-right">{tileScale}%</span>
+                </div>
+              </div>
+              <div>
                 <label className="text-xs text-text-muted mb-2 block flex-items-center gap-1">
                   <Palette size={12} /> Your Color
                 </label>
@@ -475,8 +487,8 @@ export default function SettingsPanel({
                   <div>
                     <label className="text-xs text-text-muted mb-1 block">Font Size</label>
                     <select
-                      value={fontSettings?.fontSize || 'medium'}
-                      onChange={e => setFontSettings?.({ fontSize: e.target.value, fontFamily: fontSettings?.fontFamily || 'system', highContrast: fontSettings?.highContrast || false })}
+                      value={localFontSettings.fontSize}
+                      onChange={e => setFontSettings?.({ fontSize: e.target.value, fontFamily: localFontSettings.fontFamily, highContrast: localFontSettings.highContrast })}
                       className="input appearance-none w-full"
                     >
                       <option value="small">Small (12px)</option>
@@ -488,8 +500,8 @@ export default function SettingsPanel({
                   <div>
                     <label className="text-xs text-text-muted mb-1 block">Font Family</label>
                     <select
-                      value={fontSettings?.fontFamily || 'system'}
-                      onChange={e => setFontSettings?.({ fontFamily: e.target.value, fontSize: fontSettings?.fontSize || 'medium', highContrast: fontSettings?.highContrast || false })}
+                      value={localFontSettings.fontFamily}
+                      onChange={e => setFontSettings?.({ fontFamily: e.target.value, fontSize: localFontSettings.fontSize, highContrast: localFontSettings.highContrast })}
                       className="input appearance-none w-full"
                     >
                       <option value="system">System Default</option>
@@ -502,8 +514,8 @@ export default function SettingsPanel({
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
-                      checked={fontSettings?.highContrast || false}
-                      onChange={e => setFontSettings?.({ highContrast: e.target.checked, fontSize: fontSettings?.fontSize || 'medium', fontFamily: fontSettings?.fontFamily || 'system' })}
+                      checked={localFontSettings.highContrast}
+                      onChange={e => setFontSettings?.({ highContrast: e.target.checked, fontSize: localFontSettings.fontSize, fontFamily: localFontSettings.fontFamily })}
                       className="w-4 h-4 accent-haze-500 rounded border-border-primary bg-bg-secondary"
                     />
                     <span className="text-sm text-text-primary font-medium">High Contrast</span>

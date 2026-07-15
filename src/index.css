@@ -296,6 +296,8 @@
   * { box-sizing: border-box; }
   html { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; font-size: var(--font-size-base); }
   body { background: var(--color-bg-primary); color: var(--color-text-primary); min-height: 100vh; line-height: var(--leading-normal); }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
   h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 600; line-height: var(--leading-tight); color: var(--color-text-primary); }
   h1 { font-size: var(--text-5xl); letter-spacing: -0.02em; }
   h2 { font-size: var(--text-4xl); letter-spacing: -0.02em; }

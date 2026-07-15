@@ -119,7 +119,7 @@ function ParticipantsTab({
   unpinParticipant?: (identity: string) => void;
 }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null)
-  const menuBtnRef = useRef<HTMLButtonElement | null>(null)
+  const menuBtnRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
   const menuRef = useRef<HTMLDivElement | null>(null)
 
   // Sort users: pinned first, then others, with current user always at the end
@@ -146,43 +146,40 @@ function ParticipantsTab({
   }, [])
 
   // Host controls menu component with proper positioning
-  const HostControlsMenu = ({ isPinned, onClose, onAction, onTogglePin, onUnpin, buttonRef }: {
+  const HostControlsMenu = ({ isPinned, onClose, onAction, onTogglePin, onUnpin, buttonEl }: {
     isPinned: boolean
     onClose: () => void
     onAction: (action: string) => void
     onTogglePin: () => void
     onUnpin: () => void
-    buttonRef: React.RefObject<HTMLButtonElement | null>
+    buttonEl: HTMLButtonElement | null
   }) => {
     const [position, setPosition] = useState({ top: 0, left: 0 })
 
     useEffect(() => {
-      const btn = buttonRef.current
-      if (!btn) return
-      const rect = btn.getBoundingClientRect()
+      if (!buttonEl) return
+      const rect = buttonEl.getBoundingClientRect()
       const menuWidth = 224
       const menuHeight = 180
-      
+
       let left = rect.left
       let top = rect.bottom + 4
-      
+
       if (left + menuWidth > window.innerWidth) {
         left = window.innerWidth - menuWidth - 8
       }
       if (left < 8) {
         left = 8
       }
-      // Check if menu would go off bottom of screen
       if (top + menuHeight > window.innerHeight) {
         top = rect.top - menuHeight - 4
       }
-      // Check if menu would go off top of screen
       if (top < 0) {
         top = 8
       }
-      
+
       setPosition({ top, left })
-    }, [buttonRef])
+    }, [buttonEl])
 
     return (
       <div
@@ -258,7 +255,7 @@ function ParticipantsTab({
               {!isCurrent && isLocalHost && (
                 <div className="relative">
                   <button
-                    ref={menuBtnRef}
+                    ref={el => { if (el) menuBtnRefs.current.set(user.id, el); else menuBtnRefs.current.delete(user.id) }}
                     onClick={() => setOpenMenu(isMenuOpen ? null : user.id)}
                     className="p-1.5 rounded-lg hover:bg-bg-tertiary transition-colors text-text-muted hover:text-text-primary"
                     title="Host controls"
@@ -267,7 +264,7 @@ function ParticipantsTab({
                   </button>
                   {isMenuOpen && (
                     <HostControlsMenu
-                      buttonRef={menuBtnRef}
+                      buttonEl={menuBtnRefs.current.get(user.id) ?? null}
                       isPinned={isPinned}
                       onClose={() => setOpenMenu(null)}
                       onAction={handleHostAction}

@@ -29,8 +29,8 @@ export default function CreateModal({ onClose, onConfirm }: CreateModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
-      <div className="glass-card w-full max-w-md mx-4 p-6 animate-scale-in">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
+      <div className="glass-card w-full max-w-md mx-4 p-6 animate-scale-in" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-display font-medium">Create Meeting</h2>
           <button onClick={onClose} className="btn-ghost btn-icon-sm" aria-label="Close">

@@ -1,6 +1,5 @@
 import { Monitor } from 'lucide-react'
 import ParticipantVideo from './ParticipantVideo'
-import { Track } from 'livekit-client'
 import { useRoom, useLocalIdentity } from '../context/LiveKitContext'
 import DraggablePanel from './DraggablePanel'
 import { getUserColor } from '../utils/colors'
@@ -21,13 +20,8 @@ export default function SelfView({ username, camOn, isSharing, isSpeaking, float
 
   const speakingRing = isSpeaking ? 'ring-2 ring-haze-500' : ''
 
-  const content = isSharing && localParticipant ? (
-    <ParticipantVideo
-      participant={localParticipant}
-      isLocal
-      source={Track.Source.ScreenShare}
-    />
-  ) : camOn && localParticipant ? (
+  // Self view always shows camera (or avatar), never screenshare — screenshare is a separate tile
+  const content = camOn && localParticipant ? (
     <ParticipantVideo participant={localParticipant} isLocal />
   ) : (
     <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: userColor }}>

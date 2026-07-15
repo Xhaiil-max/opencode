@@ -55,25 +55,36 @@ export default function ControlBar({
   const [showMicOptions, setShowMicOptions] = useState(false)
   const [showCamOptions, setShowCamOptions] = useState(false)
   const [showGridOptions, setShowGridOptions] = useState(false)
+  const micDropdownRef = useRef<HTMLDivElement>(null)
+  const camDropdownRef = useRef<HTMLDivElement>(null)
+  const gridDropdownRef = useRef<HTMLDivElement>(null)
 
   const canToggleWhiteboard = isLocalHost || !disableWhiteboard
-  const controlBarRef = useRef<HTMLDivElement>(null)
+  const podRef = useRef<HTMLDivElement>(null)
 
-  // Click outside to close device and grid dropdowns
+  // Click outside to close specific dropdowns
   useEffect(() => {
-    const close = (e: MouseEvent) => {
-      if (controlBarRef.current && !controlBarRef.current.contains(e.target as Node)) {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      // For mic dropdown
+      if (showMicOptions && micDropdownRef.current && !micDropdownRef.current.contains(target)) {
         setShowMicOptions(false)
+      }
+      // For cam dropdown
+      if (showCamOptions && camDropdownRef.current && !camDropdownRef.current.contains(target)) {
         setShowCamOptions(false)
+      }
+      // For grid dropdown
+      if (showGridOptions && gridDropdownRef.current && !gridDropdownRef.current.contains(target)) {
         setShowGridOptions(false)
       }
     }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
-  }, [])
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showMicOptions, showCamOptions, showGridOptions])
 
   return (
-    <div ref={controlBarRef} className="flex items-center justify-center gap-1.5 p-3 shrink-0">
+    <div ref={podRef} className="flex items-center justify-center gap-1.5 p-3 shrink-0">
       <div className="flex items-center gap-1 glass p-1.5 rounded-2xl border border-border-primary/50 backdrop-blur">
         <ButtonGroup
           label={isMicOn ? 'Mute' : 'Unmute'}
@@ -85,7 +96,7 @@ export default function ControlBar({
           showOptions={showMicOptions}
         >
           {showMicOptions && (
-            <div className="absolute bottom-full mb-2 glass-strong rounded-xl p-2 w-64 shadow-2xl z-50 max-h-[80vh] overflow-y-auto">
+            <div ref={micDropdownRef} className="absolute bottom-full mb-2 glass-strong rounded-xl p-2 w-64 shadow-2xl z-50 max-h-[80vh] overflow-y-auto">
               {audioDevices.length === 0 ? (
                 <p className="text-xs text-text-muted px-3 py-2">No microphones found</p>
               ) : (
@@ -114,7 +125,7 @@ export default function ControlBar({
           showOptions={showCamOptions}
         >
           {showCamOptions && (
-            <div className="absolute bottom-full mb-2 glass-strong rounded-xl p-2 w-64 shadow-2xl z-50 max-h-[80vh] overflow-y-auto">
+            <div ref={camDropdownRef} className="absolute bottom-full mb-2 glass-strong rounded-xl p-2 w-64 shadow-2xl z-50 max-h-[80vh] overflow-y-auto">
               {videoDevices.length === 0 ? (
                 <p className="text-xs text-text-muted px-3 py-2">No cameras found</p>
               ) : (
@@ -169,12 +180,12 @@ export default function ControlBar({
           <button
             onClick={() => setShowGridOptions(!showGridOptions)}
             title="Grid Layout"
-            className="p-2.5 rounded-xl hover:bg-bg-tertiary transition-colors duration-200 hover:scale-[1.02] active:scale-[0.98]"
+            className="p-2.5 rounded-xl hover:bg-bg-tertiary transition-colors duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
           >
             <Grid3x3 size={18} />
           </button>
           {showGridOptions && (
-            <div className="absolute bottom-full mb-2 w-56 glass-strong rounded-xl p-2 shadow-2xl z-50 max-h-[60vh] overflow-y-auto">
+            <div ref={gridDropdownRef} className="absolute bottom-full mb-2 w-56 glass-strong rounded-xl p-2 shadow-2xl z-50 max-h-[60vh] overflow-y-auto">
               <div className="space-y-1">
                 {[
                   { id: 'tiled', label: 'Tiled', icon: Grid3x3 },

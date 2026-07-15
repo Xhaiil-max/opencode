@@ -7,6 +7,24 @@ import DraggablePanel from './DraggablePanel'
 import { useLocalIdentity, useRoom } from '../context/LiveKitContext'
 import { WHITEBOARD_COLORS, WHITEBOARD_WIDTHS, type WhiteboardStroke } from '../utils/whiteboard'
 
+// roundRect polyfill for older browsers
+function roundRectPolyfill(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(x, y, w, h, r)
+    return
+  }
+  ctx.moveTo(x + r, y)
+  ctx.lineTo(x + w - r, y)
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+  ctx.lineTo(x + w, y + h - r)
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+  ctx.lineTo(x + r, y + h)
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+  ctx.lineTo(x, y + r)
+  ctx.quadraticCurveTo(x, y, x + r, y)
+  ctx.closePath()
+}
+
 // Extend Window interface for throttle tracking
 declare global {
   interface Window {
@@ -19,6 +37,7 @@ interface WhiteboardProps {
   onClose: () => void
   disableWhiteboardDrawing?: boolean
   isLocalHost?: boolean
+  users?: { id: string; name: string }[]
 }
 
 interface CursorPosition {
@@ -28,7 +47,7 @@ interface CursorPosition {
   timestamp: number
 }
 
-export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboardDrawing, isLocalHost }: WhiteboardProps) {
+export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboardDrawing, isLocalHost, users = [] }: WhiteboardProps) {
   const localIdentity = useLocalIdentity()
   const room = useRoom()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -148,9 +167,11 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
     const rect = canvas.getBoundingClientRect()
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+    // Return CSS-pixel coordinates. The context has setTransform(dpr,...) so these
+    // will be correctly mapped to device pixels by the canvas API.
     return {
-      x: (clientX - rect.left) * (canvas.width / rect.width),
-      y: (clientY - rect.top) * (canvas.height / rect.height)
+      x: clientX - rect.left,
+      y: clientY - rect.top
     }
   }, [])
 
@@ -228,17 +249,22 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
     if (!ctx) return
 
     const resize = () => {
+      const dpr = window.devicePixelRatio || 1
       const rect = canvas.getBoundingClientRect()
-      canvas.width = rect.width * window.devicePixelRatio
-      canvas.height = rect.height * window.devicePixelRatio
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
+      canvas.width = rect.width * dpr
+      canvas.height = rect.height * dpr
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       redrawAll()
     }
 
     const redrawAll = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      const dpr = window.devicePixelRatio || 1
+      const cssWidth = canvas.width / dpr
+      const cssHeight = canvas.height / dpr
+
+      ctx.clearRect(0, 0, cssWidth, cssHeight)
       ctx.fillStyle = '#0f0f0f'
-      ctx.fillRect(0, 0, canvas.width / window.devicePixelRatio, canvas.height / window.devicePixelRatio)
+      ctx.fillRect(0, 0, cssWidth, cssHeight)
       strokes.forEach(stroke => {
         if (stroke.points.length < 2) return
         ctx.globalCompositeOperation = stroke.isEraser ? 'destination-out' : 'source-over'
@@ -247,46 +273,56 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
         ctx.lineCap = 'round'
         ctx.lineJoin = 'round'
         ctx.beginPath()
+        // Points are stored in CSS pixels (matching the ctx transform).
         ctx.moveTo(stroke.points[0].x, stroke.points[0].y)
         for (let i = 1; i < stroke.points.length; i++) {
-          // Convert percentage coordinates back to pixel coordinates
-          const px = (stroke.points[i].x / 100) * canvas.width
-          const py = (stroke.points[i].y / 100) * canvas.height
-          ctx.lineTo(px, py)
+          ctx.lineTo(stroke.points[i].x, stroke.points[i].y)
         }
         ctx.stroke()
       })
       ctx.globalCompositeOperation = 'source-over'
 
-      // Draw cursors for other users
+      // Draw remote cursors — positions are percentage-based (0-100)
       cursors.forEach(cursor => {
-        // Skip drawing our own cursor
         if (cursor.userId === localIdentity) return
+        const cx = (cursor.x / 100) * cssWidth
+        const cy = (cursor.y / 100) * cssHeight
 
-        // Convert percentage coordinates to pixel coordinates
-        const cx = (cursor.x / 100) * canvas.width
-        const cy = (cursor.y / 100) * canvas.height
-
-        // Draw cursor dot
-        ctx.fillStyle = '#00bfff'
+        // Cursor ring
         ctx.beginPath()
-        ctx.arc(cx, cy, 4, 0, Math.PI * 2)
+        ctx.arc(cx, cy, 6, 0, Math.PI * 2)
+        ctx.fillStyle = '#8b5cf6'
+        ctx.fill()
+        ctx.strokeStyle = '#ffffff'
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+
+        // Name label — look up real name from users, fall back to abbreviated identity
+        const cursorUser = users.find(u => u.id === cursor.userId)
+        const displayName = cursorUser ? cursorUser.name : (cursor.userId.length > 12 ? cursor.userId.substring(0, 12) + '...' : cursor.userId)
+        ctx.font = 'bold 11px sans-serif'
+        const textMetrics = ctx.measureText(displayName)
+        const labelW = textMetrics.width + 10
+        const labelH = 18
+        const labelX = cx + 8
+        const labelY = cy - 18
+
+        ctx.fillStyle = '#8b5cf6'
+        ctx.beginPath()
+        roundRectPolyfill(ctx, labelX, labelY, labelW, labelH, 4)
         ctx.fill()
 
-        // Draw cursor label
         ctx.fillStyle = '#ffffff'
-        ctx.font = '10px sans-serif'
-        ctx.textAlign = 'center'
-        // Show abbreviated user ID for privacy
-        const userId = cursor.userId.length > 8 ? cursor.userId.substring(0, 8) + '...' : cursor.userId
-        ctx.fillText(userId, cx, cy - 10)
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(displayName, labelX + 5, labelY + labelH / 2)
       })
     }
 
     resize()
     window.addEventListener('resize', resize)
     return () => window.removeEventListener('resize', resize)
-  }, [strokes])
+  }, [strokes, cursors, localIdentity])
 
   // Clean up old cursors
   useEffect(() => {
