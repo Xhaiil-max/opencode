@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import type { User, ChatMessage, SidebarTab, HostSettings } from '../types'
-import { Mic, MicOff, Video, VideoOff, MonitorUp, MessageSquare, Users, Smile, PenTool, Hand, MoreHorizontal, VolumeX, Trash2, X, Pin } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, MonitorUp, MessageSquare, Users, Smile, PenTool, Hand, MoreHorizontal, VolumeX, Trash2, X, Pin, EarOff } from 'lucide-react'
+import { WaveformDots } from './AudioVisualizer'
+import { ChevronDown } from 'lucide-react'
 
 const EMOJIS = ['😀', '😂', '😍', '😎', '👍', '👎', '❤️', '🔥', '🎉', '😢', '😡', '🤔', '😴', '🤯', '👋', '🙏', '💪', '🍕', '☕', '🚀', '✨', '💯', '🤝', '🎯', '💡', '🌟', '⚡', '🎨', '🎮', '🎵']
 
@@ -19,12 +21,17 @@ interface SidebarProps {
   hostSettings: HostSettings
   onUpdateHostSettings: (settings: HostSettings) => void
   onClose: () => void
+  onSidebarTabChange?: (tab: SidebarTab) => void
+  pinnedParticipantId?: string | null
+  pinParticipant?: (identity: string) => void
+  unpinParticipant?: (identity: string) => void
 }
 
 export default function Sidebar({
   users, localIdentity, messages, tab, onTabChange, chatDisabled, onSendMessage,
   isLocalHost, onBroadcastHostAction, onToggleWhiteboard, whiteboardOpen,
-  hostSettings, onUpdateHostSettings, onClose
+  hostSettings, onUpdateHostSettings, onClose,
+  pinnedParticipantId, pinParticipant, unpinParticipant
 }: SidebarProps) {
   const [input, setInput] = useState('')
 
@@ -58,16 +65,13 @@ export default function Sidebar({
     <div className="w-80 glass border-r border-border-primary flex flex-col h-full min-h-0 shrink-0">
       <div className="flex items-center justify-between p-2 gap-1 border-b border-border-primary shrink-0">
         <div className="flex items-center gap-1 flex-1">
-          <button onClick={() => onTabChange('participants')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors $
-            {tab === 'participants' ? 'bg-bg-tertiary text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'}`}>
+          <button onClick={() => onTabChange('participants')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${tab === 'participants' ? 'bg-bg-tertiary text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'}`}>
             <Users size={14} /> Participants ({users.length})
           </button>
-          <button onClick={() => onTabChange('chat')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors $
-            {tab === 'chat' ? 'bg-bg-tertiary text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'}`}>
+          <button onClick={() => onTabChange('chat')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${tab === 'chat' ? 'bg-bg-tertiary text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'}`}>
             <MessageSquare size={14} /> Chat
           </button>
-          <button onClick={() => onTabChange('tools')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors $
-            {tab === 'tools' ? 'bg-bg-tertiary text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'}`}>
+          <button onClick={() => onTabChange('tools')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${tab === 'tools' ? 'bg-bg-tertiary text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'}`}>
             <PenTool size={14} /> Tools
           </button>
         </div>
@@ -83,6 +87,9 @@ export default function Sidebar({
             localIdentity={localIdentity}
             isLocalHost={isLocalHost}
             onBroadcastHostAction={onBroadcastHostAction}
+            pinnedParticipantId={pinnedParticipantId}
+            pinParticipant={pinParticipant}
+            unpinParticipant={unpinParticipant}
           />
         ) : tab === 'chat' ? (
           <ChatTab messages={messages} onSend={send} input={input} onInputChange={setInput} disabled={chatDisabled} onPaste={handlePaste} users={users} localIdentity={localIdentity} />
@@ -101,28 +108,32 @@ export default function Sidebar({
 }
 
 function ParticipantsTab({
-  users, localIdentity, isLocalHost, onBroadcastHostAction
+  users, localIdentity, isLocalHost, onBroadcastHostAction,
+  pinnedParticipantId, pinParticipant, unpinParticipant
 }: {
   users: User[]; localIdentity: string;
   isLocalHost: boolean;
   onBroadcastHostAction: (action: string) => void;
+  pinnedParticipantId?: string | null;
+  pinParticipant?: (identity: string) => void;
+  unpinParticipant?: (identity: string) => void;
 }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null)
-  const [pinnedUsers, setPinnedUsers] = useState<string[]>([])
+  const menuBtnRef = useRef<HTMLButtonElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
 
   // Sort users: pinned first, then others, with current user always at the end
   const sortedUsers = useMemo(() => {
-    const pinned = users.filter(user => pinnedUsers.includes(user.id) && !user.isLocal)
-    const unpinned = users.filter(user => !pinnedUsers.includes(user.id) && !user.isLocal)
+    const pinned = users.filter(user => pinnedParticipantId && user.id === pinnedParticipantId && !user.isLocal)
+    const unpinned = users.filter(user => !(pinnedParticipantId && user.id === pinnedParticipantId) && !user.isLocal)
     const current = users.filter(user => user.isLocal)
 
-    // Sort pinned and unpinned alphabetically by name
+    // Sort alphabetically by name
     pinned.sort((a: User, b: User) => a.name.localeCompare(b.name))
     unpinned.sort((a: User, b: User) => a.name.localeCompare(b.name))
 
     return [...pinned, ...unpinned, ...current]
-  }, [users, pinnedUsers])
+  }, [users, pinnedParticipantId])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -134,6 +145,83 @@ function ParticipantsTab({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Host controls menu component with proper positioning
+  const HostControlsMenu = ({ isPinned, onClose, onAction, onTogglePin, onUnpin, buttonRef }: {
+    isPinned: boolean
+    onClose: () => void
+    onAction: (action: string) => void
+    onTogglePin: () => void
+    onUnpin: () => void
+    buttonRef: React.RefObject<HTMLButtonElement | null>
+  }) => {
+    const [position, setPosition] = useState({ top: 0, left: 0 })
+
+    useEffect(() => {
+      const btn = buttonRef.current
+      if (!btn) return
+      const rect = btn.getBoundingClientRect()
+      const menuWidth = 224
+      const menuHeight = 180
+      
+      let left = rect.left
+      let top = rect.bottom + 4
+      
+      if (left + menuWidth > window.innerWidth) {
+        left = window.innerWidth - menuWidth - 8
+      }
+      if (left < 8) {
+        left = 8
+      }
+      // Check if menu would go off bottom of screen
+      if (top + menuHeight > window.innerHeight) {
+        top = rect.top - menuHeight - 4
+      }
+      // Check if menu would go off top of screen
+      if (top < 0) {
+        top = 8
+      }
+      
+      setPosition({ top, left })
+    }, [buttonRef])
+
+    return (
+      <div
+        className="fixed z-[9999] glass-strong rounded-xl p-1 shadow-2xl min-w-[160px] animate-fade-in"
+        style={position}
+      >
+        <div className="px-2 py-1 text-xs font-medium text-text-muted uppercase tracking-wide">Host Controls</div>
+        <button onClick={() => { onAction('muteParticipant'); onClose() }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
+          <VolumeX size={14} className="text-accent-warning" />
+          Mute
+        </button>
+        <button onClick={() => { onAction('deafenParticipant'); onClose() }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
+          <EarOff size={14} className="text-accent-warning" />
+          Deafen
+        </button>
+        <button onClick={() => { onAction('disableVideo'); onClose() }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
+          <VideoOff size={14} className="text-accent-warning" />
+          Turn off Camera
+        </button>
+        <button onClick={() => { onAction('removeParticipant'); onClose() }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-accent-error hover:bg-accent-error/10 rounded-lg transition-colors">
+          <Trash2 size={14} />
+          Remove
+        </button>
+        {!isPinned && (
+          <button onClick={onTogglePin} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
+            <Pin size={14} className="text-accent-success" />
+            Pin
+          </button>
+        )}
+        {isPinned && (
+          <button onClick={onUnpin} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
+            <Pin size={14} className="text-accent-warning" />
+            Unpin
+          </button>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="flex-1 overflow-y-auto p-2 scrollbar-thin">
       {sortedUsers.map(user => {
@@ -141,7 +229,7 @@ function ParticipantsTab({
         const initials = user.name.split(' ').slice(0, 2).map(n => n[0]).join('')
         const userColor = user.color || '#6366f1'
         const isMenuOpen = openMenu === user.id
-        const isPinned = pinnedUsers.includes(user.id)
+        const isPinned = pinnedParticipantId === user.id
 
         const handleHostAction = (action: string) => {
           onBroadcastHostAction(`${action}:${user.id}`)
@@ -158,16 +246,19 @@ function ParticipantsTab({
                 <div className="flex items-center gap-1.5 truncate">
                   <span className="text-sm font-medium truncate" style={{color: userColor}}>{user.name}{isCurrent ? ' (You)' : ''}</span>
                   {user.handRaised && <Hand size={12} className="text-accent-warning flex-shrink-0" />}
+                  {user.isDeafened && <EarOff size={12} className="text-accent-error flex-shrink-0" />}
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-text-muted">
                   {user.micOn ? <Mic size={10} className="text-accent-success" /> : <MicOff size={10} className="text-accent-error" />}
                   {user.camOn ? <Video size={10} className="text-accent-success" /> : <VideoOff size={10} className="text-accent-error" />}
                   {user.isSharing && <MonitorUp size={10} className="text-accent-success" />}
+                  {user.audioLevel > 5 && user.micOn && <WaveformDots level={user.audioLevel} isSpeaking={user.isSpeaking} className="ml-1" />}
                 </div>
               </div>
               {!isCurrent && isLocalHost && (
                 <div className="relative">
-                  <button 
+                  <button
+                    ref={menuBtnRef}
                     onClick={() => setOpenMenu(isMenuOpen ? null : user.id)}
                     className="p-1.5 rounded-lg hover:bg-bg-tertiary transition-colors text-text-muted hover:text-text-primary"
                     title="Host controls"
@@ -175,41 +266,22 @@ function ParticipantsTab({
                     <MoreHorizontal size={14} />
                   </button>
                   {isMenuOpen && (
-                    <div className="absolute right-0 top-full mt-1 glass-strong rounded-xl p-1 shadow-2xl z-50 min-w-[160px] animate-fade-in">
-                      <div className="px-2 py-1 text-xs font-medium text-text-muted uppercase tracking-wide">Host Controls</div>
-                      <button onClick={() => handleHostAction('muteParticipant')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
-                        <VolumeX size={14} className="text-accent-warning" />
-                        Mute
-                      </button>
-                      <button onClick={() => handleHostAction('disableVideo')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
-                        <VideoOff size={14} className="text-accent-warning" />
-                        Turn off Camera
-                      </button>
-                      <button onClick={() => handleHostAction('removeParticipant')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-accent-error hover:bg-accent-error/10 rounded-lg transition-colors">
-                        <Trash2 size={14} />
-                        Remove
-                      </button>
-                      {!isPinned && (
-                        <button onClick={() => {
-                          setPinnedUsers(prev => [...prev.filter(id => id !== user.id), user.id])
-                          setOpenMenu(null)
-                          onBroadcastHostAction(`pinParticipant:${user.id}`)
-                        }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
-                          <Pin size={14} className="text-accent-success" />
-                          Pin
-                        </button>
-                      )}
-                      {isPinned && (
-                        <button onClick={() => {
-                          setPinnedUsers(prev => prev.filter(id => id !== user.id))
-                          setOpenMenu(null)
-                          onBroadcastHostAction(`unpinParticipant:${user.id}`)
-                        }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
-                          <Pin size={14} className="text-accent-warning" />
-                          Unpin
-                        </button>
-                      )}
-                    </div>
+                    <HostControlsMenu
+                      buttonRef={menuBtnRef}
+                      isPinned={isPinned}
+                      onClose={() => setOpenMenu(null)}
+                      onAction={handleHostAction}
+                      onTogglePin={() => {
+                        pinParticipant?.(user.id)
+                        onBroadcastHostAction(`pinParticipant:${user.id}`)
+                        setOpenMenu(null)
+                      }}
+                      onUnpin={() => {
+                        unpinParticipant?.(user.id)
+                        onBroadcastHostAction(`unpinParticipant:${user.id}`)
+                        setOpenMenu(null)
+                      }}
+                    />
                   )}
                 </div>
               )}
@@ -231,6 +303,9 @@ function ChatTab({ messages, onSend, input, onInputChange, disabled, onPaste, us
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const userScrolledRef = useRef(false)
+  const scrollBtnRef = useRef<HTMLButtonElement | null>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [newMessageAdded, setNewMessageAdded] = useState(false);
 
   // Filter users for mention (max 10)
   const mentionableUsers = users
@@ -298,6 +373,11 @@ function ChatTab({ messages, onSend, input, onInputChange, disabled, onPaste, us
       userScrolledRef.current = true
     }
     
+    // Reset scroll state when user scrolls back to bottom
+    if (isAtBottom && userScrolledRef.current) {
+      userScrolledRef.current = false
+    }
+    
     setShowScrollButton(!isAtBottom)
   }
 
@@ -358,8 +438,7 @@ function ChatTab({ messages, onSend, input, onInputChange, disabled, onPaste, us
     );
   }
 
-  return (
-    <div className="flex-1 flex flex-col min-h-0 relative">
+  return (\n\n  useEffect(() => {\n    if (newMessageAdded && messagesContainerRef.current) {\n      messagesContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });\n      setNewMessageAdded(false);\n    }\n  }, [newMessageAdded]);\n\n    <div className="flex-1 flex flex-col min-h-0 relative">
       <div 
         ref={containerRef}
         className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin"
@@ -379,7 +458,7 @@ function ChatTab({ messages, onSend, input, onInputChange, disabled, onPaste, us
       
       {/* Scroll to bottom button */}
       {showScrollButton && (
-        <button
+        <button ref={scrollBtnRef}
           onClick={() => scrollToBottom()}
           className="absolute bottom-16 right-3 p-2 rounded-full glass-strong shadow-lg text-text-primary hover:text-haze-400 transition-colors z-10"
           title="Jump to latest messages"
@@ -390,6 +469,7 @@ function ChatTab({ messages, onSend, input, onInputChange, disabled, onPaste, us
           </svg>
         </button>
       )}
+        <ChevronDown className="absolute bottom-16 right-3 text-text-primary hover:text-haze-400 transition-colors z-10" />
       
       <div className="p-3 border-t border-border-primary shrink-0 relative">
         {disabled ? (
@@ -452,8 +532,7 @@ function ToolsTab({
         <h4 className="text-xs font-medium text-text-muted mb-3 uppercase tracking-wide">Whiteboard</h4>
         <button
           onClick={onToggleWhiteboard}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border $
-            {whiteboardOpen
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border ${whiteboardOpen
               ? 'bg-haze-500/20 border-haze-500/50 text-haze-400'
               : 'bg-bg-secondary border-border-primary text-text-primary hover:bg-bg-tertiary'}`}
         >

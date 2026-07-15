@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Copy, Check, MoreHorizontal, PenTool, Settings, Users, MessageSquare } from 'lucide-react'
 import type { SelfViewMode, SidebarTab, GridPreset } from '../types'
+import { Track } from 'livekit-client'
 import ControlBar from './ControlBar'
 import ParticipantTile from './ParticipantTile'
 import SelfView from './SelfView'
@@ -17,9 +18,40 @@ function ConnectionQualityIndicator({ quality, state }: { quality: number; state
   // LiveKit connectionQuality is 0-5, higher is better
   // 5 = excellent (all bars), 4 = good, 3 = fair, 2 = poor, 1 = very poor, 0 = disconnected
 
-  const getBarClasses = (barIndex: number) => {
-    if (state !== 'connected') return 'h-1 bg-text-muted/20';
+  // Show different states based on connection
+  if (state === 'disconnected') {
+    return (
+      <div className="relative inline-flex items-center gap-2" title="Disconnected">
+        <div className="flex space-x-0.5">
+          {[1, 2, 3, 4].map((bar) => (
+            <div key={bar} className="h-1 bg-text-muted/20" />
+          ))}
+        </div>
+        <span className="text-xs font-medium text-accent-error whitespace-nowrap">Lost</span>
+        <span className="text-xs text-text-muted">Disconnected</span>
+      </div>
+    );
+  }
 
+  if (state === 'connecting' || state === 'reconnecting' || state === 'signalReconnecting') {
+    return (
+      <div className="relative inline-flex items-center gap-2" title="Connecting...">
+        <div className="flex space-x-0.5">
+          {[1, 2, 3, 4].map((bar, i) => (
+            <div
+              key={bar}
+              className={`h-1.5 bg-haze-500/50 animate-pulse`}
+              style={{ animationDelay: `${i * 100}ms` }}
+            />
+          ))}
+        </div>
+        <span className="text-xs font-medium text-haze-500 whitespace-nowrap">Connecting...</span>
+      </div>
+    );
+  }
+
+  // Connected state - show quality bars
+  const getBarClasses = (barIndex: number) => {
     const barCount = 4;
     const threshold = (barIndex + 1) / barCount * 5; // Convert 0-5 scale to bar threshold
 
@@ -35,8 +67,6 @@ function ConnectionQualityIndicator({ quality, state }: { quality: number; state
   };
 
   const getTooltipContent = () => {
-    if (state !== 'connected') return `${state.charAt(0).toUpperCase() + state.slice(1)} (${quality.toFixed(1)}/5)`;
-
     let qualityText = '';
     if (quality >= 4.5) qualityText = 'Excellent';
     else if (quality >= 3.5) qualityText = 'Good';
@@ -86,6 +116,37 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
   const [showWhiteboard, setShowWhiteboard] = useState(false)
   const [showUnifiedMenu, setShowUnifiedMenu] = useState(false)
   const unifiedMenuRef = useRef<HTMLDivElement>(null)
+  const sidebarRef = useRef<HTMLDivElement>(null)
+
+  // Handle whiteboard toggle from host
+  useEffect(() => {
+    const handleWhiteboardToggle = (e: CustomEvent) => {
+      if (e.detail?.open) {
+        setShowWhiteboard(true);
+      } else {
+        setShowWhiteboard(false);
+      }
+    };
+    window.addEventListener('whiteboardToggle', handleWhiteboardToggle as EventListener);
+    return () => window.removeEventListener('whiteboardToggle', handleWhiteboardToggle as EventListener);
+  }, []);
+
+  // Close sidebar when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sidebarRef.current && !sidebarRef.current.contains(e.target as Node)) {
+        // Check if click is on the control bar buttons that open the sidebar
+        const target = e.target as HTMLElement
+        if (target.closest('[data-sidebar-trigger]')) return
+        setSidebarOpen(false)
+      }
+    }
+
+    if (sidebarOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [sidebarOpen])
 
   const localUser = lk.users.find(u => u.id === username)
   const isSpeaking = localUser?.isSpeaking ?? false
@@ -170,29 +231,54 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
     // Simple tiled layout - always show all participants in a grid
     return (
       <>
-        {sortedRemote.map(u => <ParticipantTile key={u.id} user={u} isDeafened={lk.isDeafened} />)}
-        {screenShares.map(ss => (
-          <ParticipantTile
-            key={ss.id}
-            user={{
-              id: ss.id,
-              name: `${ss.presenterName}'s Screen`,
-              micOn: false,
-              camOn: false,
-              handRaised: false,
-              isSharing: true,
-              isSpeaking: ss.isSpeaking,
-              audioLevel: ss.audioLevel,
-              volume: 80,
-              localVideoDisabled: false,
-              localScreenshareDisabled: false,
-              isHost: false,
-              color: ss.presenterColor,
-              connectionQuality: 5,
-            }}
-            isDeafened={lk.isDeafened}
-          />
-        ))}
+        {sortedRemote.map(u => <ParticipantTile
+          key={u.id}
+          user={u}
+          isDeafened={lk.isDeafened}
+          isLocalHost={lk.isLocalHost}
+          muteParticipant={lk.muteParticipant}
+          deafenParticipant={lk.deafenParticipant}
+          disableVideo={lk.disableVideo}
+          pinnedParticipantId={lk.pinnedParticipantId}
+          pinParticipant={lk.pinParticipant}
+          unpinParticipant={lk.unpinParticipant}
+        />)}
+        {screenShares.map(ss => {
+            const presenterParticipant = ss.presenterId === lk.room?.localParticipant.identity
+              ? lk.room?.localParticipant
+              : lk.room?.remoteParticipants.get(ss.presenterId) ?? null
+            return (
+              <ParticipantTile
+                key={ss.id}
+                user={{
+                  id: ss.id,
+                  name: `${ss.presenterName}'s Screen`,
+                  micOn: false,
+                  camOn: false,
+                  handRaised: false,
+                  isSharing: true,
+                  isSpeaking: ss.isSpeaking,
+                  audioLevel: ss.audioLevel,
+                  volume: 80,
+                  localVideoDisabled: false,
+                  localScreenshareDisabled: false,
+                  isHost: false,
+                  color: ss.presenterColor,
+                  connectionQuality: 5,
+                }}
+                isDeafened={lk.isDeafened}
+                participant={presenterParticipant}
+                source={Track.Source.ScreenShare}
+                isLocalHost={lk.isLocalHost}
+                muteParticipant={lk.muteParticipant}
+                deafenParticipant={lk.deafenParticipant}
+                disableVideo={lk.disableVideo}
+                pinnedParticipantId={lk.pinnedParticipantId}
+                pinParticipant={lk.pinParticipant}
+                unpinParticipant={lk.unpinParticipant}
+              />
+            )
+          })}
         {selfViewMode === 'grid' && (
           <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} isSpeaking={isSpeaking} />
         )}
@@ -262,7 +348,7 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
                   )}
                 </div>
 
-                <ConnectionQualityIndicator quality={lk.stats?.connectionQuality ?? 0} state={lk.connectionState} />
+                <ConnectionQualityIndicator quality={lk.stats?.connectionQuality ?? 5} state={lk.connectionState} />
               </div>
             </div>
 
@@ -357,6 +443,7 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
               isLocalHost={lk.isLocalHost}
               gridPreset={gridPreset}
               onGridPresetChange={setGridPreset}
+              requestMediaPermissions={lk.requestMediaPermissions}
             />
           </div>
 
@@ -382,6 +469,10 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
               hostSettings={lk.hostSettings}
               onUpdateHostSettings={lk.updateHostSettings}
               onClose={() => setSidebarOpen(false)}
+              onSidebarTabChange={setSidebarTab}
+              pinnedParticipantId={lk.pinnedParticipantId}
+              pinParticipant={lk.pinParticipant}
+              unpinParticipant={lk.unpinParticipant}
             />
             </>
           )}
@@ -421,11 +512,25 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
               camOn={lk.isCamOn}
               userColor={lk.users.find(u => u.id === username)?.color || '#6366f1'}
               onUserColorChange={lk.setUserColor}
+              soundVolume={lk.soundVolume}
+              onSoundVolumeChange={lk.setSoundVolume}
               selfViewMode={selfViewMode}
               onSelfViewModeChange={setSelfViewMode}
-              gridPreset={'tiled'}
-              onGridPresetChange={() => {}}
+              gridPreset={gridPreset}
+              onGridPresetChange={setGridPreset}
               isHost={lk.isLocalHost}
+              // Host control functions
+              muteAllParticipants={lk.muteAllParticipants}
+              toggleScreenSharePermission={lk.toggleScreenSharePermission}
+              toggleCameraPermission={lk.toggleCameraPermission}
+              toggleMicrophonePermission={lk.toggleMicrophonePermission}
+              // Device functions
+              requestMediaPermissions={lk.requestMediaPermissions}
+              // Theme + screenshare settings persistence
+              theme={lk.theme}
+              onThemeChange={lk.setTheme}
+              screenShareSettings={lk.screenShareSettings}
+              onScreenShareSettingsChange={lk.setScreenShareSettings}
             />
           )}
         </div>

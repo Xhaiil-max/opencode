@@ -5,11 +5,11 @@ import {
   Track,
   type Participant,
 } from "livekit-client";
-import type { User, ChatMessage, Stats, Keybind, HostSettings, ScreenShareUser, WhiteboardStroke } from "../types";
+import type { User, ChatMessage, Stats, Keybind, HostSettings, ScreenShareUser, WhiteboardStroke, FontSettings, ThemeName } from "../types";
 import { sounds } from "../utils/sounds";
 import { getUserColor } from "../utils/colors";
 import type { ScreenShareSettings } from "../utils/screenShare";
-import { parseResolution } from "../utils/screenShare";
+import { parseResolution, DEFAULT_SCREENSHARE_SETTINGS } from "../utils/screenShare";
 
 const TOKEN_URL = import.meta.env.VITE_TOKEN_URL || "https://connect-token.kadvabh.workers.dev";
 
@@ -27,6 +27,7 @@ const DEFAULT_HOST_SETTINGS: HostSettings = {
   disableWhiteboard: false,
   disableWhiteboardDrawing: false,
   deafenEveryone: false,
+  disableScreenShare: false,
 }
 
 interface UseLiveKitOptions {
@@ -87,13 +88,17 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
   const isHostCreatorRef = useRef(isHostCreator);
   isHostCreatorRef.current = isHostCreator;
   const [connectionState, setConnectionState] = useState<
-    "disconnected" | "connecting" | "connected"
+    "disconnected" | "connecting" | "connected" | "reconnecting" | "signalReconnecting"
   >("disconnected");
   const [users, setUsers] = useState<User[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isMicOn, setIsMicOn] = useState(false);
+  const isMicOnRef = useRef(isMicOn);
+  isMicOnRef.current = isMicOn;
   const [isCamOn, setIsCamOn] = useState(false);
+  const isCamOnRef = useRef(isCamOn);
+  isCamOnRef.current = isCamOn;
   const [isSharing, setIsSharing] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
   const [isRaisedHand, setIsRaisedHand] = useState(false);
@@ -103,9 +108,74 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [micGain, setMicGainState] = useState(100);
+  const [soundVolume, setSoundVolumeState] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('soundVolume')
+      return saved ? parseFloat(saved) : 1.0
+    }
+    return 1.0
+  });
   const [screenShares, setScreenShares] = useState<ScreenShareUser[]>([]);
+  const [pinnedParticipantId, setPinnedParticipantId] = useState<string | null>(null);
+  const pinnedParticipantIdRef = useRef(pinnedParticipantId);
+  pinnedParticipantIdRef.current = pinnedParticipantId;
+  const [fontSettings, setFontSettings] = useState<FontSettings>({
+    fontFamily: 'system',
+    fontSize: 'medium',
+    highContrast: false,
+  });
+  const fontSettingsRef = useRef(fontSettings);
+  fontSettingsRef.current = fontSettings;
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove('theme-light', 'theme-gray');
+    if (fontSettings.highContrast) root.classList.add('theme-high-contrast');
+    else root.classList.remove('theme-high-contrast');
+    const sizeMap: Record<string, string> = { small: '0.8125rem', medium: '0.9375rem', large: '1.0625rem', xlarge: '1.1875rem' };
+    root.style.setProperty('--font-size-base', sizeMap[fontSettings.fontSize] || '0.9375rem');
+    const familyMap: Record<string, string> = {
+      system: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      inter: "'Inter', sans-serif",
+      roboto: "'Roboto', sans-serif",
+      opensans: "'Open Sans', sans-serif",
+      monospace: "'JetBrains Mono', 'Fira Code', monospace",
+    };
+    root.style.setProperty('--font-family-base', familyMap[fontSettings.fontFamily] || familyMap.system);
+  }, [fontSettings]);
+  const [theme, setThemeState] = useState<ThemeName>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('theme');
+      if (saved === 'light' || saved === 'gray' || saved === 'dark') return saved;
+    }
+    return 'dark';
+  });
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove('theme-light', 'theme-gray');
+    if (theme === 'light') root.classList.add('theme-light');
+    else if (theme === 'gray') root.classList.add('theme-gray');
+    if (typeof window !== 'undefined') localStorage.setItem('theme', theme);
+  }, [theme]);
+  const setTheme = useCallback((t: ThemeName) => setThemeState(t), []);
+  const [screenShareSettings, setScreenShareSettingsState] = useState<ScreenShareSettings>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('screenShareSettings');
+      if (saved) {
+        try { return { ...DEFAULT_SCREENSHARE_SETTINGS, ...JSON.parse(saved) }; } catch { /* ignore */ }
+      }
+    }
+    return DEFAULT_SCREENSHARE_SETTINGS;
+  });
+  const setScreenShareSettings = useCallback((s: ScreenShareSettings) => {
+    setScreenShareSettingsState(s);
+    if (typeof window !== 'undefined') localStorage.setItem('screenShareSettings', JSON.stringify(s));
+  }, []);
+  const screenShareSettingsRef = useRef(screenShareSettings);
+  screenShareSettingsRef.current = screenShareSettings;
   const micGainRef = useRef(micGain);
   micGainRef.current = micGain;
+  const usernameRef = useRef(username);
+  usernameRef.current = username;
   
   // Whiteboard callbacks
   const whiteboardCallbacks = useRef<((stroke: WhiteboardStroke) => void)[]>([]);
@@ -120,13 +190,53 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
     };
   }, []);
   
-  // Mic gain setter for UI - actual gain applied via track processors in LiveKit
-  const setMicGain = useCallback((gain: number) => {
-    const clamped = Math.max(0, Math.min(200, gain));
+  // Mic gain Web Audio nodes kept in refs so we can update gain without rebuilding the graph
+  const micGainNodeRef = useRef<GainNode | null>(null);
+  const micAudioCtxRef = useRef<AudioContext | null>(null);
+  const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+
+  // Mic gain setter for UI - applies gain using Web Audio API on the microphone track
+  const setMicGain = useCallback(async (gain: number) => {
+    const clamped = Math.max(0, Math.min(100, gain));
     setMicGainState(clamped);
     micGainRef.current = clamped;
-    // Note: Actual gain application requires LiveKit track processors
-    // This is a placeholder for the UI state
+
+    // Update existing gain node immediately if we already built the graph
+    if (micGainNodeRef.current) {
+      micGainNodeRef.current.gain.value = clamped / 100;
+      return;
+    }
+
+    const room = roomRef.current;
+    if (!room) return;
+
+    const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+    const micTrack = micPub?.track as any;
+    const mediaStreamTrack = micTrack?.mediaStreamTrack;
+    if (!mediaStreamTrack) return;
+
+    try {
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(new MediaStream([mediaStreamTrack]));
+      const gainNode = audioCtx.createGain();
+      gainNode.gain.value = clamped / 100;
+      source.connect(gainNode);
+      // Don't connect to destination - we don't want to hear ourselves.
+      // The gain is applied for visualization purposes (useAudioLevel reads from this graph).
+      micAudioCtxRef.current = audioCtx;
+      micSourceRef.current = source;
+      micGainNodeRef.current = gainNode;
+    } catch (e) {
+      console.warn('Could not apply mic gain:', e);
+    }
+  }, []);
+  const setSoundVolume = useCallback((volume: number) => {
+    const clamped = Math.max(0, Math.min(1, volume));
+    setSoundVolumeState(clamped);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('soundVolume', clamped.toString());
+    }
+    sounds.setSoundVolume(clamped);
   }, []);
   const sentMessageIds = useRef<Set<string>>(new Set());
   const hostIdentityRef = useRef(hostIdentity);
@@ -147,36 +257,28 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
 
   const refreshDevices = useCallback(async () => {
     try {
-      // Try to get current state of mic/cam without prompting if possible
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: false
-      }).catch(() => null);
-
-      // Get tracks to see what we have access to
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-
-      // Now enumerate devices
+      // Enumerate devices directly - no need to request dummy stream first
       const devices = await navigator.mediaDevices.enumerateDevices()
       setAudioDevices(devices.filter((d) => d.kind === "audioinput"))
       setVideoDevices(devices.filter((d) => d.kind === "videoinput"))
     } catch (error) {
       console.warn('Could not enumerate media devices:', error);
-      // Try alternate approach - just enumerate without attempting access first
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices()
-        setAudioDevices(devices.filter((d) => d.kind === "audioinput"))
-        setVideoDevices(devices.filter((d) => d.kind === "videoinput"))
-      } catch (enumError) {
-        console.error('Failed to enumerate devices even with fallback:', enumError);
-        // Set empty arrays but don't fail silently
-        setAudioDevices([])
-        setVideoDevices([])
-      }
+      setAudioDevices([])
+      setVideoDevices([])
     }
   }, [])
+
+  // Request permissions early to get device labels
+  const requestMediaPermissions = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+      stream.getTracks().forEach(t => t.stop())
+      // Now enumerate devices again to get labels
+      await refreshDevices()
+    } catch (error) {
+      console.warn('Could not request media permissions:', error)
+    }
+  }, [refreshDevices])
 
   // Also refresh devices on mount
   useEffect(() => {
@@ -223,6 +325,11 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
           });
           if (participant?.identity !== roomRef.current?.localParticipant.identity) {
             sounds.message();
+            // Check for @mention of current user
+            const localIdentity = usernameRef.current;
+            if (localIdentity && message.message && message.message.includes(`@${localIdentity}`)) {
+              sounds.mention();
+            }
           }
         }
 
@@ -292,6 +399,14 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
               sounds.mute();
             }
           }
+          if (message.action.startsWith("deafenParticipant:")) {
+            const targetId = message.action.split(":")[1];
+            if (targetId === local.identity) {
+              setIsDeafened(true);
+              setUsers((prev) => prev.map((u) => (u.id === targetId ? { ...u, isDeafened: true } : u)));
+              sounds.deafen();
+            }
+          }
           if (message.action.startsWith("disableVideo:")) {
             const targetId = message.action.split(":")[1];
             if (targetId === local.identity) {
@@ -324,29 +439,28 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
             setIsDeafened(false);
             sounds.undeafen();
           }
-          if (message.type === "userColor" && message.color && message.identity) {
-            setUsers((prev) =>
-              prev.map((u) =>
-                u.id === message.identity ? { ...u, color: message.color } : u
-              )
-            );
+          if (message.action.startsWith("pinParticipant:")) {
+            const targetId = message.action.split(":")[1];
+            setPinnedParticipantId(targetId);
           }
+          if (message.action.startsWith("unpinParticipant:")) {
+            setPinnedParticipantId(null);
+          }
+          if (message.action === "toggleWhiteboard") {
+            window.dispatchEvent(new CustomEvent('whiteboardToggle', { detail: { open: true } }));
+          }
+          if (message.action === "closeWhiteboard") {
+            window.dispatchEvent(new CustomEvent('whiteboardToggle', { detail: { open: false } }));
+          }
+        }
 
-          if (message.type === "deafen" && message.identity !== undefined) {
-            setUsers((prev) =>
-              prev.map((u) =>
-                u.id === message.identity
-                  ? { ...u, isDeafened: message.value }
-                  : u
-              )
-            );
-          }
-
-            // Play sound for self if we're the one being deafened/undeafened
-            if (participant?.identity === roomRef.current?.localParticipant.identity) {
-              message.value ? sounds.deafen() : sounds.undeafen();
-            }
-          }
+        if (message.type === "userColor" && message.color && message.identity) {
+          setUsers((prev) =>
+            prev.map((u) =>
+              u.id === message.identity ? { ...u, color: message.color } : u
+            )
+          );
+        }
 
         if (message.type === "whiteboardStroke" && message.stroke) {
           whiteboardCallbacks.current.forEach(cb => cb(message.stroke!));
@@ -390,10 +504,32 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
           addOrUpdateUser(p);
           if (p.identity !== room.localParticipant.identity) {
             sounds.participantJoin();
+            // Add system message for participant join
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `system-join-${p.identity}-${Date.now()}`,
+                sender: 'System',
+                content: `${p.name || p.identity} joined the meeting`,
+                timestamp: Date.now(),
+              },
+            ]);
           }
           void announceHost();
         });
-        room.on(RoomEvent.ParticipantDisconnected, (p) => removeUser(p.identity));
+        room.on(RoomEvent.ParticipantDisconnected, (p) => {
+          removeUser(p.identity);
+          // Add system message for participant leave
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `system-leave-${p.identity}-${Date.now()}`,
+              sender: 'System',
+              content: `${p.name || p.identity} left the meeting`,
+              timestamp: Date.now(),
+            },
+          ]);
+        });
 
         room.on(RoomEvent.TrackMuted, (_pub, participant) => addOrUpdateUser(participant));
         room.on(RoomEvent.TrackUnmuted, (_pub, participant) => addOrUpdateUser(participant));
@@ -413,6 +549,10 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
             setScreenShares(prev => [...prev.filter(s => s.id !== ssUser.id), ssUser]);
             if (participant.identity === room.localParticipant.identity) setIsSharing(true);
             else sounds.screenShareStart();
+            // Auto-pin the screen share presenter
+            if (participant.identity !== room.localParticipant.identity) {
+              pinParticipant(participant.identity);
+            }
           }
         });
 
@@ -427,6 +567,10 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
             );
             if (participant.identity === room.localParticipant.identity) setIsSharing(false);
             else sounds.screenShareStop();
+            // Unpin when screen share stops
+            if (pinnedParticipantIdRef.current === participant.identity) {
+              unpinParticipant(participant.identity);
+            }
           }
         });
 
@@ -461,7 +605,15 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
         });
 
         room.on(RoomEvent.ConnectionStateChanged, (state) => {
-          setConnectionState(state === "connected" ? "connected" : "connecting");
+          // Handle all possible connection states - LiveKit returns strings that match the enum values
+          const validStates = ["connected", "connecting", "reconnecting", "signalReconnecting", "disconnected"];
+          if (validStates.includes(state)) {
+            setConnectionState(state);
+          } else {
+            console.warn("Unknown connection state:", state);
+            // Default to disconnected for unknown states
+            setConnectionState("disconnected");
+          }
         });
 
         room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
@@ -615,7 +767,12 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
           await announceHost();
         }
 
+        // Refresh devices after mic/cam are enabled to get proper labels
         await refreshDevices();
+        
+        // Also request media permissions to ensure device labels are populated
+        await requestMediaPermissions();
+        
         sounds.join();
         setConnectionState("connected");
       } catch (err) {
@@ -688,7 +845,7 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
   const toggleMic = useCallback(async () => {
     const room = roomRef.current;
     if (!room) return;
-    const next = !isMicOn;
+    const next = !isMicOnRef.current;
     await room.localParticipant.setMicrophoneEnabled(next);
     setIsMicOn(next);
     setUsers((prev) =>
@@ -697,12 +854,12 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
       )
     );
     next ? sounds.unmute() : sounds.mute();
-  }, [isMicOn]);
+  }, []);
 
   const toggleCam = useCallback(async () => {
     const room = roomRef.current;
     if (!room) return;
-    const next = !isCamOn;
+    const next = !isCamOnRef.current;
     await room.localParticipant.setCameraEnabled(next);
     setIsCamOn(next);
     setUsers((prev) =>
@@ -710,17 +867,16 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
         u.id === room.localParticipant.identity ? { ...u, camOn: next } : u
       )
     );
-  }, [isCamOn]);
+  }, []);
 
   const startScreenShare = useCallback(async (settings?: ScreenShareSettings) => {
     const room = roomRef.current;
     if (!room) return;
 
-    const { width, height } = settings
-      ? parseResolution(settings.resolution)
-      : { width: 1920, height: 1080 };
-    const frameRate = settings?.frameRate ?? 30;
-    const includeAudio = settings?.includeAudio ?? true;
+    const resolved = settings ?? screenShareSettingsRef.current;
+    const { width, height } = parseResolution(resolved.resolution);
+    const frameRate = resolved.frameRate ?? 30;
+    const includeAudio = resolved.includeAudio ?? true;
 
     await room.localParticipant.setScreenShareEnabled(true, {
       audio: includeAudio,
@@ -826,7 +982,10 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
   }, [hostSettings.deafenEveryone, hostSettings.muteEveryone, broadcastHostAction, isHostCreatorRef.current]);
 
   const setUserColor = useCallback((color: string) => {
-    setUserColor(color);
+    // Save to localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('userColor', color)
+    }
     setUsers((prev) =>
       prev.map((u) =>
         u.id === username ? { ...u, color } : u
@@ -835,6 +994,68 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
     // Broadcast color change to other participants
     publishData({ type: "userColor", color, identity: username });
   }, [username, publishData]);
+
+  // Host control functions
+  const muteAllParticipants = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room) return;
+    await publishData({ type: "hostAction", action: "muteAll" });
+  }, [publishData]);
+
+  const removeParticipant = useCallback(async (identity: string) => {
+    const room = roomRef.current;
+    if (!room) return;
+    await publishData({ type: "hostAction", action: `removeParticipant:${identity}` });
+  }, [publishData]);
+
+  const pinParticipant = useCallback(async (identity: string) => {
+    await publishData({ type: "hostAction", action: `pinParticipant:${identity}` });
+  }, [publishData]);
+
+  const unpinParticipant = useCallback(async (identity: string) => {
+    await publishData({ type: "hostAction", action: `unpinParticipant:${identity}` });
+  }, [publishData]);
+
+  const muteParticipant = useCallback(async (identity: string) => {
+    await publishData({ type: "hostAction", action: `muteParticipant:${identity}` });
+  }, [publishData]);
+
+  const deafenParticipant = useCallback(async (identity: string) => {
+    await publishData({ type: "hostAction", action: `deafenParticipant:${identity}` });
+  }, [publishData]);
+
+  const disableVideo = useCallback(async (identity: string) => {
+    await publishData({ type: "hostAction", action: `disableVideo:${identity}` });
+  }, [publishData]);
+
+  const toggleWhiteboard = useCallback(async () => {
+    await publishData({ type: "hostAction", action: "toggleWhiteboard" });
+  }, [publishData]);
+
+  const closeWhiteboard = useCallback(async () => {
+    await publishData({ type: "hostAction", action: "closeWhiteboard" });
+  }, [publishData]);
+
+  const toggleScreenSharePermission = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room) return;
+    const current = hostSettings.disableScreenShare ?? false;
+    await updateHostSettings({ ...hostSettings, disableScreenShare: !current });
+  }, [hostSettings, updateHostSettings]);
+
+  const toggleCameraPermission = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room) return;
+    const current = hostSettings.disableCameras ?? false;
+    await updateHostSettings({ ...hostSettings, disableCameras: !current });
+  }, [hostSettings, updateHostSettings]);
+
+  const toggleMicrophonePermission = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room) return;
+    const current = hostSettings.muteEveryone ?? false;
+    await updateHostSettings({ ...hostSettings, muteEveryone: !current });
+  }, [hostSettings, updateHostSettings]);
 
   return {
     room,
@@ -876,6 +1097,31 @@ export function useLiveKit({ username, roomName, isHostCreator = false }: UseLiv
     updateHostSettings,
     broadcastHostAction,
     refreshDevices,
+    requestMediaPermissions,
     setUserColor,
-  };
+    // Sound volume
+    soundVolume,
+    setSoundVolume,
+    // Host control functions
+    muteAllParticipants,
+    removeParticipant,
+    pinParticipant,
+    unpinParticipant,
+    muteParticipant,
+    deafenParticipant,
+    disableVideo,
+    pinnedParticipantId,
+    toggleWhiteboard,
+    closeWhiteboard,
+    toggleScreenSharePermission,
+    toggleCameraPermission,
+    toggleMicrophonePermission,
+      fontSettings,
+      setFontSettings,
+      // Theme + screenshare settings persistence
+      theme,
+      setTheme,
+      screenShareSettings,
+      setScreenShareSettings,
+    };
 }

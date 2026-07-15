@@ -26,6 +26,7 @@ export interface ScreenShareUser {
   presenterColor: string
   isSpeaking: boolean
   audioLevel: number
+  isLocal: boolean
 }
 
 export interface ChatMessage {
@@ -46,7 +47,9 @@ export type GridPreset = 'tiled' | 'spotlight' | 'speaker' | 'sidebar'
 
 export type SidebarTab = 'participants' | 'chat' | 'tools'
 
-export type TabName = 'audio' | 'video' | 'keybinds' | 'general' | 'stats' | 'screenshare' | 'chat' | 'host-controls'
+export type ThemeName = 'dark' | 'light' | 'gray'
+
+export type TabName = 'audio' | 'video' | 'keybinds' | 'general' | 'stats' | 'screenshare' | 'theme' | 'chat' | 'host-controls'
 
 export interface Stat {
   label: string
@@ -83,7 +86,7 @@ export interface Stats {
     packetLoss: number
     jitter: number
   }
-  connectionQuality: number // 0-5, higher is better
+  connectionQuality: number
 }
 
 export interface HostSettings {
@@ -94,14 +97,13 @@ export interface HostSettings {
   disableWhiteboard: boolean
   disableWhiteboardDrawing: boolean
   deafenEveryone: boolean
+  disableScreenShare: boolean
 }
 
-export interface ScreenShareUser {
-  id: string
-  presenterId: string
-  presenterName: string
-  presenterColor: string
-  isLocal: boolean
+export interface FontSettings {
+  fontFamily: string
+  fontSize: string
+  highContrast?: boolean
 }
 
 export interface WhiteboardStroke {

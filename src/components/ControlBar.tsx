@@ -2,8 +2,8 @@ import type { GridPreset } from '../types'
 import { useState } from 'react'
 import {
   Mic, MicOff, Video, VideoOff, MonitorUp, Hand, Ear, EarOff,
-  Settings, PhoneOff, ChevronUp, PanelRight, PanelRightClose, User, PenTool,
-  Grid3x3, SplitSquareVertical, Menu
+  Settings, PhoneOff, ChevronUp, PanelRight, User, PenTool,
+  Grid3x3, SplitSquareVertical, Menu, MessageSquare
 } from 'lucide-react'
 
 interface ControlBarProps {
@@ -36,6 +36,7 @@ interface ControlBarProps {
   isLocalHost?: boolean
   gridPreset: 'tiled' | 'spotlight' | 'speaker' | 'sidebar'
   onGridPresetChange: (preset: 'tiled' | 'spotlight' | 'speaker' | 'sidebar') => void
+  requestMediaPermissions: () => void
 }
 
 export default function ControlBar({
@@ -48,6 +49,8 @@ export default function ControlBar({
   whiteboardOpen, onToggleWhiteboard,
   disableWhiteboard, isLocalHost,
   gridPreset, onGridPresetChange,
+  onSidebarTabChange, sidebarTab,
+  requestMediaPermissions,
 }: ControlBarProps) {
   const [showMicOptions, setShowMicOptions] = useState(false)
   const [showCamOptions, setShowCamOptions] = useState(false)
@@ -64,26 +67,24 @@ export default function ControlBar({
           active={isMicOn}
           danger={!isMicOn}
           onClick={onMicToggle}
-          onArrowClick={() => setShowMicOptions(!showMicOptions)}
+          onArrowClick={() => { requestMediaPermissions(); setShowMicOptions(!showMicOptions) }}
           showOptions={showMicOptions}
         >
           {showMicOptions && (
-            <div className="absolute bottom-full mb-2 glass-strong rounded-xl p-2 w-64 shadow-2xl z-50">
+            <div className="absolute bottom-full mb-2 glass-strong rounded-xl p-2 w-64 shadow-2xl z-50 max-h-[80vh] overflow-y-auto">
               {audioDevices.length === 0 ? (
                 <p className="text-xs text-text-muted px-3 py-2">No microphones found</p>
               ) : (
-                <div className="absolute bottom-full mb-2 w-64 glass-strong rounded-xl p-2 shadow-2xl z-50 max-h-[80vh] overflow-y-auto">
-                  {audioDevices.map(d => (
-                    <button
-                      key={d.deviceId}
-                      onClick={() => { onSwitchAudioDevice(d.deviceId); setShowMicOptions(false) }}
-                      className="block w-full text-left text-xs px-3 py-2 rounded-lg hover:bg-bg-tertiary transition-colors truncate"
-                      title={d.label || `Microphone ${d.deviceId.slice(0, 6)}`}
-                    >
-                      {d.label || `Microphone ${d.deviceId.slice(0, 6)}`}
-                    </button>
-                  ))}
-                </div>
+                audioDevices.map(d => (
+                  <button
+                    key={d.deviceId}
+                    onClick={() => { onSwitchAudioDevice(d.deviceId); setShowMicOptions(false) }}
+                    className="block w-full text-left text-xs px-3 py-2 rounded-lg hover:bg-bg-tertiary transition-colors truncate"
+                    title={d.label || `Microphone ${d.deviceId.slice(0, 6)}`}
+                  >
+                    {d.label || `Microphone ${d.deviceId.slice(0, 6)}`}
+                  </button>
+                ))
               )}
             </div>
           )}
@@ -95,26 +96,24 @@ export default function ControlBar({
           active={isCamOn}
           danger={!isCamOn}
           onClick={onCamToggle}
-          onArrowClick={() => setShowCamOptions(!showCamOptions)}
+          onArrowClick={() => { requestMediaPermissions(); setShowCamOptions(!showCamOptions) }}
           showOptions={showCamOptions}
         >
           {showCamOptions && (
-            <div className="absolute bottom-full mb-2 glass-strong rounded-xl p-2 w-64 shadow-2xl z-50">
+            <div className="absolute bottom-full mb-2 glass-strong rounded-xl p-2 w-64 shadow-2xl z-50 max-h-[80vh] overflow-y-auto">
               {videoDevices.length === 0 ? (
                 <p className="text-xs text-text-muted px-3 py-2">No cameras found</p>
               ) : (
-                <div className="absolute bottom-full mb-2 w-64 glass-strong rounded-xl p-2 shadow-2xl z-50 max-h-[80vh] overflow-y-auto">
-                  {videoDevices.map(d => (
-                    <button
-                      key={d.deviceId}
-                      onClick={() => { onSwitchVideoDevice(d.deviceId); setShowCamOptions(false) }}
-                      className="block w-full text-left text-xs px-3 py-2 rounded-lg hover:bg-bg-tertiary transition-colors truncate"
-                      title={d.label || `Camera ${d.deviceId.slice(0, 6)}`}
-                    >
-                      {d.label || `Camera ${d.deviceId.slice(0, 6)}`}
-                    </button>
-                  ))}
-                </div>
+                videoDevices.map(d => (
+                  <button
+                    key={d.deviceId}
+                    onClick={() => { onSwitchVideoDevice(d.deviceId); setShowCamOptions(false) }}
+                    className="block w-full text-left text-xs px-3 py-2 rounded-lg hover:bg-bg-tertiary transition-colors truncate"
+                    title={d.label || `Camera ${d.deviceId.slice(0, 6)}`}
+                  >
+                    {d.label || `Camera ${d.deviceId.slice(0, 6)}`}
+                  </button>
+                ))
               )}
             </div>
           )}
@@ -150,12 +149,49 @@ export default function ControlBar({
           onClick={onToggleWhiteboard}
           disabled={!canToggleWhiteboard}
         />
-        <ControlButton
-          label="Toggle Sidebar"
-          icon={sidebarOpen ? PanelRightClose : PanelRight}
-          active={sidebarOpen}
-          onClick={onToggleSidebar}
-        />
+
+        {/* Sidebar tab buttons - Participants, Chat, Tools */}
+        <div className="flex items-center gap-0.5 p-1 rounded-xl bg-bg-tertiary/50 border border-border-primary/50">
+          <CircularButton
+            label="Participants"
+            icon={User}
+            active={sidebarOpen && sidebarTab === 'participants'}
+            onClick={() => {
+              if (sidebarTab === 'participants') {
+                onToggleSidebar()
+              } else {
+                onSidebarTabChange('participants')
+                if (!sidebarOpen) onToggleSidebar()
+              }
+            }}
+          />
+          <CircularButton
+            label="Chat"
+            icon={MessageSquare}
+            active={sidebarOpen && sidebarTab === 'chat'}
+            onClick={() => {
+              if (sidebarTab === 'chat') {
+                onToggleSidebar()
+              } else {
+                onSidebarTabChange('chat')
+                if (!sidebarOpen) onToggleSidebar()
+              }
+            }}
+          />
+          <CircularButton
+            label="Tools"
+            icon={PenTool}
+            active={sidebarOpen && sidebarTab === 'tools'}
+            onClick={() => {
+              if (sidebarTab === 'tools') {
+                onToggleSidebar()
+              } else {
+                onSidebarTabChange('tools')
+                if (!sidebarOpen) onToggleSidebar()
+              }
+            }}
+          />
+        </div>
 
         {/* Grid Layout Controls */}
         <div className="relative">
@@ -195,6 +231,52 @@ export default function ControlBar({
           )}
         </div>
 
+        {/* Sidebar tab buttons - Participants, Chat, Tools */}
+        <div className="flex items-center gap-0.5 ml-1">
+          <CircularButton
+            label="Participants"
+            icon={User}
+            active={sidebarOpen && sidebarTab === 'participants'}
+            onClick={() => {
+              if (sidebarOpen && sidebarTab === 'participants') {
+                onToggleSidebar()
+              } else {
+                onSidebarTabChange('participants')
+                if (!sidebarOpen) onToggleSidebar()
+              }
+            }}
+            size="sm"
+          />
+          <CircularButton
+            label="Chat"
+            icon={MessageSquare}
+            active={sidebarOpen && sidebarTab === 'chat'}
+            onClick={() => {
+              if (sidebarOpen && sidebarTab === 'chat') {
+                onToggleSidebar()
+              } else {
+                onSidebarTabChange('chat')
+                if (!sidebarOpen) onToggleSidebar()
+              }
+            }}
+            size="sm"
+          />
+          <CircularButton
+            label="Tools"
+            icon={PenTool}
+            active={sidebarOpen && sidebarTab === 'tools'}
+            onClick={() => {
+              if (sidebarOpen && sidebarTab === 'tools') {
+                onToggleSidebar()
+              } else {
+                onSidebarTabChange('tools')
+                if (!sidebarOpen) onToggleSidebar()
+              }
+            }}
+            size="sm"
+          />
+        </div>
+
         <ControlButton label="Settings" icon={Settings} active={false} onClick={onSettings} />
 
         <div className="w-px h-6 bg-border-primary mx-1" />
@@ -203,6 +285,50 @@ export default function ControlBar({
         </button>
       </div>
     </div>
+  )
+}
+
+function CircularButton({ label, icon: Icon, active, onClick, disabled, size = 'md' }: {
+  label: string
+  icon: React.ComponentType<{ size?: number }>
+  active: boolean
+  onClick: () => void
+  disabled?: boolean
+  size?: 'sm' | 'md' | 'lg'
+}) {
+  const sizeClasses = {
+    sm: 'p-1.5',
+    md: 'p-2',
+    lg: 'p-2.5',
+  }
+
+  const iconSizes = {
+    sm: 14,
+    md: 16,
+    lg: 18,
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      className={`
+        relative rounded-full transition-all duration-200
+        ${sizeClasses[size]}
+        ${active
+          ? 'bg-haze-500/20 text-haze-400 ring-2 ring-haze-500/50'
+          : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
+        }
+        ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
+        hover:scale-[1.05] active:scale-[0.95]
+      `}
+    >
+      <Icon size={iconSizes[size]} />
+      {active && (
+        <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-haze-500" />
+      )}
+    </button>
   )
 }
 

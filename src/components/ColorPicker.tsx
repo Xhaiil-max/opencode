@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { X, Droplet, Square } from 'lucide-react'
-import { USER_COLORS, USER_GRADIENTS, setUserColor } from '../utils/colors'
+import { USER_COLORS, USER_GRADIENTS } from '../utils/colors'
 
 interface ColorPickerProps {
   userColor: string
@@ -22,7 +22,6 @@ export default function ColorPicker({ userColor, onUserColorChange }: ColorPicke
   }, [])
 
   const handleColorClick = (color: string) => {
-    setUserColor(color)
     onUserColorChange(color)
   }
 

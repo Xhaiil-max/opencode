@@ -5,7 +5,6 @@ import {
 } from 'lucide-react'
 import DraggablePanel from './DraggablePanel'
 import { useLocalIdentity, useRoom } from '../context/LiveKitContext'
-import { useLiveKit } from '../hooks/useLiveKit'
 import { WHITEBOARD_COLORS, WHITEBOARD_WIDTHS, type WhiteboardStroke } from '../utils/whiteboard'
 
 // Extend Window interface for throttle tracking
@@ -32,8 +31,14 @@ interface CursorPosition {
 export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboardDrawing, isLocalHost }: WhiteboardProps) {
   const localIdentity = useLocalIdentity()
   const room = useRoom()
-  const { publishData } = useLiveKit({ username: localIdentity, roomName: '' })
   const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  const publish = useCallback((payload: object) => {
+    if (!room) return
+    const data = new TextEncoder().encode(JSON.stringify(payload))
+    room.localParticipant.publishData(data, { reliable: true })
+  }, [room])
+  const cursorSendRef = useRef<number>(0)
   const [strokes, setStrokes] = useState<WhiteboardStroke[]>([])
   const [currentStroke, setCurrentStroke] = useState<WhiteboardStroke | null>(null)
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen')
@@ -98,9 +103,9 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
       }
 
       // Broadcast cursor position (throttle to avoid too many messages)
-      if (Date.now() - (window.lastCursorSend || 0) > 100) {
-        publishData({ type: 'cursorMove', cursor: pos })
-        window.lastCursorSend = Date.now()
+      if (Date.now() - (cursorSendRef.current || 0) > 100) {
+        publish({ type: 'cursorMove', cursor: pos })
+        cursorSendRef.current = Date.now()
       }
     }
 
@@ -118,9 +123,9 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
       }
 
       // Broadcast cursor position (throttle to avoid too many messages)
-      if (Date.now() - (window.lastCursorSend || 0) > 100) {
-        publishData({ type: 'cursorMove', cursor: pos })
-        window.lastCursorSend = Date.now()
+      if (Date.now() - (cursorSendRef.current || 0) > 100) {
+        publish({ type: 'cursorMove', cursor: pos })
+        cursorSendRef.current = Date.now()
       }
     }
 
@@ -131,11 +136,11 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
       canvasRef.current?.removeEventListener('mousemove', handleMouseMove)
       canvasRef.current?.removeEventListener('touchmove', handleTouchMove)
     }
-  }, [room, localIdentity, publishData])
+  }, [room, localIdentity, publish])
 
   const broadcastStroke = useCallback((stroke: WhiteboardStroke) => {
-    publishData({ type: 'whiteboardStroke', stroke })
-  }, [publishData])
+    publish({ type: 'whiteboardStroke', stroke })
+  }, [publish])
 
   const getCanvasPoint = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current
@@ -163,7 +168,8 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
       color: tool === 'eraser' ? '#000000' : color,
       width: tool === 'eraser' ? width * 3 : width,
       userId: localIdentity,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      isEraser: tool === 'eraser'
     }
     setCurrentStroke(newStroke)
     setIsDrawing(true)
@@ -180,6 +186,7 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
     const updatedStroke = { ...currentStroke, points: [...currentStroke.points, point] }
     setCurrentStroke(updatedStroke)
 
+    ctx.globalCompositeOperation = updatedStroke.isEraser ? 'destination-out' : 'source-over'
     ctx.strokeStyle = updatedStroke.color
     ctx.lineWidth = updatedStroke.width
     ctx.lineCap = 'round'
@@ -188,6 +195,7 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
     ctx.moveTo(currentStroke.points[currentStroke.points.length - 1].x, currentStroke.points[currentStroke.points.length - 1].y)
     ctx.lineTo(point.x, point.y)
     ctx.stroke()
+    ctx.globalCompositeOperation = 'source-over'
   }, [isDrawing, currentStroke, getCanvasPoint, canDraw])
 
   const stopDrawing = useCallback(() => {
@@ -201,7 +209,7 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
   const clearCanvas = () => {
     if (!canDraw) return
     setStrokes([])
-    publishData({ type: 'whiteboardClear' })
+    publish({ type: 'whiteboardClear' })
   }
 
   const downloadCanvas = () => {
@@ -233,6 +241,7 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
       ctx.fillRect(0, 0, canvas.width / window.devicePixelRatio, canvas.height / window.devicePixelRatio)
       strokes.forEach(stroke => {
         if (stroke.points.length < 2) return
+        ctx.globalCompositeOperation = stroke.isEraser ? 'destination-out' : 'source-over'
         ctx.strokeStyle = stroke.color
         ctx.lineWidth = stroke.width
         ctx.lineCap = 'round'
@@ -247,6 +256,7 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
         }
         ctx.stroke()
       })
+      ctx.globalCompositeOperation = 'source-over'
 
       // Draw cursors for other users
       cursors.forEach(cursor => {
@@ -277,58 +287,6 @@ export default function Whiteboard({ isOpen: _isOpen, onClose, disableWhiteboard
     window.addEventListener('resize', resize)
     return () => window.removeEventListener('resize', resize)
   }, [strokes])
-
-  // Broadcast cursor position
-  useEffect(() => {
-    if (!room || !canvasRef.current) return
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const canvas = canvasRef.current
-      if (!canvas) return
-
-      const rect = canvas.getBoundingClientRect()
-      const pos = {
-        x: ((e.clientX - rect.left) / rect.width) * 100, // Percentage for responsive positioning
-        y: ((e.clientY - rect.top) / rect.height) * 100,
-        userId: localIdentity,
-        timestamp: Date.now()
-      }
-
-      // Broadcast cursor position (throttle to avoid too many messages)
-      if (Date.now() - (window.lastCursorSend || 0) > 100) {
-        publishData({ type: 'cursorMove', cursor: pos })
-        window.lastCursorSend = Date.now()
-      }
-    }
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 0) return
-      const canvas = canvasRef.current
-      if (!canvas) return
-
-      const rect = canvas.getBoundingClientRect()
-      const pos = {
-        x: ((e.touches[0].clientX - rect.left) / rect.width) * 100,
-        y: ((e.touches[0].clientY - rect.top) / rect.height) * 100,
-        userId: localIdentity,
-        timestamp: Date.now()
-      }
-
-      // Broadcast cursor position (throttle to avoid too many messages)
-      if (Date.now() - (window.lastCursorSend || 0) > 100) {
-        publishData({ type: 'cursorMove', cursor: pos })
-        window.lastCursorSend = Date.now()
-      }
-    }
-
-    canvasRef.current.addEventListener('mousemove', handleMouseMove)
-    canvasRef.current.addEventListener('touchmove', handleTouchMove)
-
-    return () => {
-      canvasRef.current?.removeEventListener('mousemove', handleMouseMove)
-      canvasRef.current?.removeEventListener('touchmove', handleTouchMove)
-    }
-  }, [room, localIdentity, publishData])
 
   // Clean up old cursors
   useEffect(() => {

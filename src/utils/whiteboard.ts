@@ -6,6 +6,7 @@ export interface WhiteboardStroke {
   width: number
   userId: string
   timestamp: number
+  isEraser?: boolean
 }
 
 export interface WhiteboardState {

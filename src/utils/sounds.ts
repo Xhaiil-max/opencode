@@ -1,9 +1,14 @@
 let audioCtx: AudioContext | null = null
+let soundVolume = 1.0
 
 function getCtx() {
   if (!audioCtx) audioCtx = new AudioContext()
   if (audioCtx.state === 'suspended') audioCtx.resume()
   return audioCtx
+}
+
+export function setSoundVolume(volume: number) {
+  soundVolume = Math.max(0, Math.min(1, volume))
 }
 
 function tone(freq: number, duration: number, type: OscillatorType = 'sine', volume = 0.15) {
@@ -13,7 +18,7 @@ function tone(freq: number, duration: number, type: OscillatorType = 'sine', vol
     const gain = ctx.createGain()
     osc.type = type
     osc.frequency.value = freq
-    gain.gain.setValueAtTime(volume, ctx.currentTime)
+    gain.gain.setValueAtTime(volume * soundVolume, ctx.currentTime)
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration)
     osc.connect(gain)
     gain.connect(ctx.destination)
@@ -36,10 +41,12 @@ export const sounds = {
   handRaise: () => tone(880, 0.15, 'triangle', 0.1),
   handLower: () => tone(660, 0.1, 'triangle', 0.08),
   message: () => tone(740, 0.12, 'sine', 0.08),
+  mention: () => chord([880, 1109, 1319], 0.3, 0.15),
   participantJoin: () => chord([440, 554, 659, 880], 0.35, 0.18),
   participantLeave: () => chord([880, 659, 554, 440], 0.3, 0.14),
   screenShareStart: () => chord([523, 659, 784, 1047], 0.4, 0.15),
   screenShareStop: () => chord([1047, 784, 659, 523], 0.35, 0.12),
   deafen: () => tone(220, 0.2, 'sine', 0.05),
   undeafen: () => tone(440, 0.2, 'sine', 0.08),
+  setSoundVolume,
 }

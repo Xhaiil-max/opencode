@@ -67,7 +67,7 @@ export default function ParticipantVideo({
       autoPlay
       muted={isLocal}
       playsInline
-      className="absolute inset-0 w-full h-full object-cover bg-black"
+      className="absolute inset-0 w-full h-full object-contain bg-black"
     />
   )
 }

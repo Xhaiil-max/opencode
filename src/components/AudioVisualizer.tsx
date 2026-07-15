@@ -5,22 +5,29 @@ interface AudioVisualizerProps {
   className?: string
   bars?: number
   type?: 'bars' | 'waveform' | 'dots'
+  color?: string
 }
 
 export default function AudioVisualizer({
   level,
   className = '',
   bars = 12,
-  type = 'bars'
+  type = 'bars',
+  color
 }: AudioVisualizerProps) {
-  // Smooth the level for better visual experience
+  // Smooth the level for better visual experience - faster response
   const [smoothedLevel, setSmoothedLevel] = useState(0)
 
   useEffect(() => {
-    // Smooth the audio level to reduce jitter
+    // Smooth the audio level to reduce jitter - faster attack, slower decay
     const frame = requestAnimationFrame(() => {
-      // Apply smoothing: 70% previous value, 30% new value
-      setSmoothedLevel(prev => prev * 0.7 + level * 0.3)
+      if (level > smoothedLevel) {
+        // Fast attack - immediately follow the level
+        setSmoothedLevel(level)
+      } else {
+        // Slower decay - 15% per frame
+        setSmoothedLevel(prev => prev * 0.85 + level * 0.15)
+      }
     })
     return () => cancelAnimationFrame(frame)
   }, [level])
@@ -37,20 +44,20 @@ export default function AudioVisualizer({
   }
 
   if (type === 'dots') {
+    const base = color || '#818cf8'
     return (
       <div className={`flex items-center gap-1 ${className}`}>
         {Array.from({ length: 5 }).map((_, i) => {
-          const delay = i * 50
           const height = Math.min(20, (smoothedLevel / 100) * 20 * (0.5 + i * 0.1))
           const opacity = 0.3 + (Math.min(smoothedLevel, 100) / 100) * 0.7
           return (
             <div
               key={i}
-              className="w-1.5 rounded-full transition-all duration-100 ease-out"
+              className="w-1.5 rounded-full transition-all duration-75 ease-out"
               style={{
                 height: `${height}px`,
-                backgroundColor: `hsla(240, 80%, 60%, ${opacity})`,
-                animationDelay: `${delay}ms`
+                backgroundColor: base,
+                opacity,
               }}
             />
           )
@@ -69,7 +76,7 @@ export default function AudioVisualizer({
         return (
           <div
             key={i}
-            className={`w-1 rounded-full transition-all duration-75 ${
+            className={`w-1 rounded-full transition-all duration-50 ${
               active ? 'bg-gradient-to-t from-indigo-500 to-violet-400' : 'bg-zinc-600'
             }`}
             style={{ height: `${height}%` }}
@@ -80,33 +87,44 @@ export default function AudioVisualizer({
   )
 }
 
-export function WaveformDots({ level, isSpeaking, className = '' }: { level: number; isSpeaking?: boolean; className?: string }) {
+export function WaveformDots({ level, isSpeaking, color, className = '' }: { level: number; isSpeaking?: boolean; color?: string; className?: string }) {
   const [smoothedLevel, setSmoothedLevel] = useState(0)
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      // Apply smoothing for more natural motion
-      setSmoothedLevel(prev => prev * 0.6 + level * 0.4)
+      // Fast attack, quick decay for accurate, low-latency response
+      if (level > smoothedLevel) {
+        setSmoothedLevel(level)
+      } else {
+        setSmoothedLevel(prev => prev * 0.7 + level * 0.3)
+      }
     })
     return () => cancelAnimationFrame(frame)
   }, [level])
 
+  const base = color || '#818cf8'
+  const active = isSpeaking || smoothedLevel > 4
+
   return (
     <div className={`flex items-center gap-1 ${className}`}>
       {Array.from({ length: 5 }).map((_, i) => {
-        const delay = i * 50
-        const height = isSpeaking
-          ? Math.max(2, (smoothedLevel / 100) * 16 * (0.5 + i * 0.2))
-          : 1
-        const opacity = isSpeaking ? 0.8 : 0.2
+        const t = i / 4
+        // Smooth waveform shape across the 5 dots
+        const wave = 0.45 + 0.55 * Math.sin(t * Math.PI * 2 + 0.6)
+        const height = active
+          ? Math.max(3, (smoothedLevel / 100) * 18 * wave + 3)
+          : 3
+        const opacity = active
+          ? 0.45 + (Math.min(smoothedLevel, 100) / 100) * 0.55
+          : 0.25
         return (
           <div
             key={i}
-            className="w-1 rounded-full transition-all duration-100 ease-out"
+            className="w-1 rounded-full transition-all duration-75 ease-out"
             style={{
               height: `${height}px`,
-              backgroundColor: `hsla(240, 80%, 60%, ${opacity})`,
-              animationDelay: `${delay}ms`
+              backgroundColor: base,
+              opacity,
             }}
           />
         )

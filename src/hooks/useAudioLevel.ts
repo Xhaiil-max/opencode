@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Track, RoomEvent, type Room } from 'livekit-client'
 
-export function useAudioLevel(stream: MediaStream | null, active = true) {
+export function useAudioLevel(stream: MediaStream | null, active = true, gain = 100) {
   const [level, setLevel] = useState(0)
   const rafRef = useRef<number>(0)
   const analyserRef = useRef<AnalyserNode | null>(null)
@@ -40,7 +40,9 @@ export function useAudioLevel(stream: MediaStream | null, active = true) {
       const rms = Math.sqrt(sum / data.length)
       // Map 0-255 to 0-100 with better curve
       const normalized = Math.min(100, Math.round((rms / 128) * 100))
-      setLevel(normalized)
+      // Apply mic gain to the visualization level
+      const withGain = Math.min(100, Math.round(normalized * (gain / 100)))
+      setLevel(withGain)
       rafRef.current = requestAnimationFrame(tick)
     }
     tick()
@@ -50,7 +52,7 @@ export function useAudioLevel(stream: MediaStream | null, active = true) {
       source.disconnect()
       // Don't close context - reuse it
     }
-  }, [stream, active])
+  }, [stream, active, gain])
 
   return level
 }
