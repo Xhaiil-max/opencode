@@ -112,6 +112,7 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
   const [showSettings, setShowSettings] = useState(false)
   const [showScreenshare, setShowScreenshare] = useState(false)
   const [showHostControls, setShowHostControls] = useState(false)
+  const hostControlsRef = useRef<HTMLDivElement>(null)
   const [linkCopied, setLinkCopied] = useState(false)
   const [showWhiteboard, setShowWhiteboard] = useState(false)
   const [showUnifiedMenu, setShowUnifiedMenu] = useState(false)
@@ -177,6 +178,18 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showUnifiedMenu, unifiedMenuRef])
 
+  // Click outside to close host controls
+  useEffect(() => {
+    if (!showHostControls) return
+    const handleClick = (e: MouseEvent) => {
+      if (hostControlsRef.current && !hostControlsRef.current.contains(e.target as Node)) {
+        setShowHostControls(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showHostControls])
+
   const handleLeave = () => { lk.disconnect(); onLeave() }
 
   const remoteUsers = lk.users.filter(u => u.id !== username)
@@ -228,7 +241,6 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
   const { screenShares } = lk
 
   const renderGrid = () => {
-    // Simple tiled layout - always show all participants in a grid
     return (
       <>
         {sortedRemote.map(u => <ParticipantTile
@@ -282,6 +294,23 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
         {selfViewMode === 'grid' && (
           <SelfView username={username} camOn={lk.isCamOn} isSharing={lk.isSharing} isSpeaking={isSpeaking} />
         )}
+      </>
+    )
+  }
+        </>
+      )
+    }
+
+    // Tiled mode (default): all participants in a grid, screen shares take max space
+    return (
+      <>
+        {hasScreenShare && (
+          <div className="col-span-full">
+            {screenTiles}
+          </div>
+        )}
+        {participantTiles}
+        {selfTile}
       </>
     )
   }
@@ -353,8 +382,13 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
             </div>
 
             {showHostControls && lk.isLocalHost && (
-              <div className="absolute top-10 right-4 z-30 glass-strong rounded-xl p-4 w-72 shadow-2xl">
-                <h3 className="text-sm font-medium text-text-primary mb-3">Host Controls</h3>
+              <div ref={hostControlsRef} className="absolute top-10 right-4 z-30 glass-strong rounded-xl p-4 w-72 shadow-2xl">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium text-text-primary">Host Controls</h3>
+                  <button onClick={() => setShowHostControls(false)} className="p-1 rounded-lg hover:bg-bg-tertiary transition-colors text-text-secondary hover:text-text-primary cursor-pointer" title="Close">
+                    <X size={14} />
+                  </button>
+                </div>
                 <div className="flex flex-col gap-2">
                   <HostControlRow
                     label="Disable Chat"
@@ -389,12 +423,10 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
               <div
                 className="w-full grid gap-2 h-full"
                 style={{
-                  gridTemplateColumns:
-                    'repeat(auto-fill, minmax(240px, 1fr))',
+                  gridTemplateColumns: gridPreset === 'spotlight' ? '2fr 1fr' : gridPreset === 'sidebar' ? '3fr 1fr' : 'repeat(auto-fill, minmax(240px, 1fr))',
                 }}
               >
                 {renderGrid()}
-              </div>
             </div>
 
             {selfViewMode === 'floating' && (

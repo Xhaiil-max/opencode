@@ -1,5 +1,5 @@
 import type { GridPreset } from '../types'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Mic, MicOff, Video, VideoOff, MonitorUp, Hand, Ear, EarOff,
   Settings, PhoneOff, ChevronUp, PanelRight, User, PenTool,
@@ -57,9 +57,23 @@ export default function ControlBar({
   const [showGridOptions, setShowGridOptions] = useState(false)
 
   const canToggleWhiteboard = isLocalHost || !disableWhiteboard
+  const controlBarRef = useRef<HTMLDivElement>(null)
+
+  // Click outside to close device and grid dropdowns
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (controlBarRef.current && !controlBarRef.current.contains(e.target as Node)) {
+        setShowMicOptions(false)
+        setShowCamOptions(false)
+        setShowGridOptions(false)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [])
 
   return (
-    <div className="flex items-center justify-center gap-1.5 p-3 shrink-0">
+    <div ref={controlBarRef} className="flex items-center justify-center gap-1.5 p-3 shrink-0">
       <div className="flex items-center gap-1 glass p-1.5 rounded-2xl border border-border-primary/50 backdrop-blur">
         <ButtonGroup
           label={isMicOn ? 'Mute' : 'Unmute'}
@@ -237,7 +251,7 @@ export default function ControlBar({
         <ControlButton label="Settings" icon={Settings} active={false} onClick={onSettings} />
 
         <div className="w-px h-6 bg-border-primary mx-1" />
-        <button onClick={onEndCall} className="p-2.5 rounded-xl bg-accent-error/20 hover:bg-accent-error/30 text-accent-error transition-colors" title="End Call">
+        <button onClick={onEndCall} className="p-2.5 rounded-xl bg-accent-error/20 hover:bg-accent-error/30 text-accent-error transition-colors cursor-pointer" title="End Call">
           <PhoneOff size={18} />
         </button>
       </div>
@@ -278,7 +292,7 @@ function CircularButton({ label, icon: Icon, active, onClick, disabled, size = '
           ? 'bg-haze-500/20 text-haze-400 ring-2 ring-haze-500/50'
           : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
         }
-        ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
+        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         hover:scale-[1.05] active:scale-[0.95]
       `}
     >
@@ -330,7 +344,7 @@ function ControlButton({
       onClick={onClick}
       title={label}
       disabled={disabled}
-      className={`${sizeClasses[size]} transition-colors ${variantClasses[variant]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''} hover:scale-[1.02] active:scale-[0.98]`}
+      className={`${sizeClasses[size]} transition-colors ${variantClasses[variant]} ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} hover:scale-[1.02] active:scale-[0.98]`}
     >
       <Icon size={size === 'md' ? 18 : 16} />
     </button>
@@ -349,12 +363,12 @@ function ButtonGroup({ label, icon: Icon, active, danger, onClick, onArrowClick,
 }) {
   return (
     <div className="relative flex">
-      <button onClick={onClick} title={label} className={`p-2.5 rounded-l-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${
+      <button onClick={onClick} title={label} className={`p-2.5 rounded-l-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer ${
         active ? 'bg-haze-500/20 text-haze-400' : danger ? 'text-accent-error bg-accent-error/10' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
       }`}>
         <Icon size={18} />
       </button>
-      <button onClick={onArrowClick} className={`p-2.5 pr-2 rounded-r-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border-l border-border-primary ${
+      <button onClick={onArrowClick} className={`p-2.5 pr-2 rounded-r-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer border-l border-border-primary ${
         active ? 'bg-haze-500/20 text-haze-400' : danger ? 'text-accent-error bg-accent-error/10' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
       }`}>
         <ChevronUp size={12} />

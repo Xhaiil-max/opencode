@@ -55,14 +55,14 @@ export default function Landing({ onCreateMeeting, onJoinMeeting, initialRoomId 
         <div className="flex gap-4 animate-slide-up" style={{ animationDelay: '300ms' }}>
           <button
             onClick={() => setShowCreate(true)}
-            className="btn-primary group"
+            className="btn-primary group rounded-full"
           >
             <Plus size={20} className="group-hover:rotate-90 transition-transform" />
             Create Meeting
           </button>
           <button
             onClick={() => setShowJoin(true)}
-            className="btn-secondary"
+            className="btn-secondary rounded-full"
           >
             <LogIn size={20} />
             Join Meeting
