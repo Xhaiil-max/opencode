@@ -531,9 +531,7 @@ function ToolsTab({
         <h4 className="text-xs font-medium text-text-muted mb-3 uppercase tracking-wide">Whiteboard</h4>
         <button
           onClick={onToggleWhiteboard}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border ${whiteboardOpen
-              ? 'bg-haze-500/20 border-haze-500/50 text-haze-400'
-              : 'bg-bg-secondary border-border-primary text-text-primary hover:bg-bg-tertiary'}`}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border ${whiteboardOpen ? 'bg-haze-500/20 border-haze-500/50 text-haze-400' : 'bg-bg-secondary border-border-primary text-text-primary hover:bg-bg-tertiary'}`}
         >
           <PenTool size={18} />
           <div className="flex-1 text-left">

@@ -412,11 +412,7 @@ export default function SettingsPanel({
                           ref={editingKey === k.id ? keybindInputRef : undefined}
                           data-keybind-id={k.id}
                           onClick={e => { e.stopPropagation(); setEditingKey(editingKey === k.id ? null : k.id) }}
-                          className={`w-full max-w-xs px-3 py-2 rounded-lg text-xs font-mono transition-colors flex items-center justify-between ${
-                            editingKey === k.id
-                              ? 'bg-haze-500/20 text-haze-400 ring-2 ring-haze-500/50'
-                              : 'bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'
-                          }`}
+                          className={`w-full max-w-xs px-3 py-2 rounded-lg text-xs font-mono transition-colors flex items-center justify-between ${editingKey === k.id ? 'bg-haze-500/20 text-haze-400 ring-2 ring-haze-500/50' : 'bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'}`}
                         >
                           {editingKey === k.id ? (
                             <>
@@ -444,9 +440,7 @@ export default function SettingsPanel({
                     <button
                       key={mode}
                       onClick={() => onSelfViewModeChange(mode)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-colors ${selfViewMode === mode
-                          ? 'bg-haze-500/20 border-haze-500/50 text-haze-300'
-                          : 'bg-bg-tertiary border-border-primary text-text-secondary hover:bg-bg-elevated'`}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-colors ${selfViewMode === mode ? 'bg-haze-500/20 border-haze-500/50 text-haze-300' : 'bg-bg-tertiary border-border-primary text-text-secondary hover:bg-bg-elevated'}`}
                     >
                       <User size={14} /> {mode === 'grid' ? 'In Grid' : 'Floating'}
                     </button>
@@ -460,9 +454,7 @@ export default function SettingsPanel({
                     <button
                       key={value}
                       onClick={() => onGridPresetChange(value)}
-                      className={`flex items-center gap-2 p-3 rounded-xl border transition-colors text-sm ${gridPreset === value
-                          ? 'bg-haze-500/20 border-haze-500/50'
-                          : 'bg-bg-tertiary border-border-primary hover:bg-bg-elevated'`}
+                      className={`flex items-center gap-2 p-3 rounded-xl border transition-colors text-sm ${gridPreset === value ? 'bg-haze-500/20 border-haze-500/50' : 'bg-bg-tertiary border-border-primary hover:bg-bg-elevated'}`}
                     >
                       <Icon size={16} /> {label}
                     </button>
@@ -537,9 +529,7 @@ export default function SettingsPanel({
                     <button
                       key={value}
                       onClick={() => onScreenShareSettingsChange?.({ ...ssDefaults, resolution: value })}
-                      className={`p-3 rounded-xl border transition-colors text-sm cursor-pointer ${
-                        value === ssDefaults.resolution ? 'bg-haze-500/20 border-haze-500/50' : 'bg-bg-tertiary border-border-primary hover:bg-bg-elevated'
-                      }`}
+                      className={`p-3 rounded-xl border transition-colors text-sm cursor-pointer ${value === ssDefaults.resolution ? 'bg-haze-500/20 border-haze-500/50' : 'bg-bg-tertiary border-border-primary hover:bg-bg-elevated'}`}
                     >
                       {label}
                     </button>
@@ -555,9 +545,7 @@ export default function SettingsPanel({
                     <button
                       key={fps}
                       onClick={() => onScreenShareSettingsChange?.({ ...ssDefaults, frameRate: fps })}
-                      className={`px-4 py-2 rounded-xl border transition-colors text-sm cursor-pointer ${
-                        fps === ssDefaults.frameRate ? 'bg-haze-500/20 border-haze-500/50 text-haze-400' : 'bg-bg-tertiary border-border-primary text-text-secondary hover:bg-bg-elevated'
-                      }`}
+                      className={`px-4 py-2 rounded-xl border transition-colors text-sm cursor-pointer ${fps === ssDefaults.frameRate ? 'bg-haze-500/20 border-haze-500/50 text-haze-400' : 'bg-bg-tertiary border-border-primary text-text-secondary hover:bg-bg-elevated'}`}
                     >
                       {fps} fps
                     </button>
@@ -570,9 +558,7 @@ export default function SettingsPanel({
                 </label>
                 <button
                   onClick={() => onScreenShareSettingsChange?.({ ...ssDefaults, includeAudio: !ssDefaults.includeAudio })}
-                  className={`px-4 py-2 rounded-xl border transition-colors text-sm cursor-pointer ${
-                    ssDefaults.includeAudio ? 'bg-haze-500/20 border-haze-500/50 text-haze-400' : 'bg-bg-tertiary border-border-primary text-text-secondary hover:bg-bg-elevated'
-                  }`}
+                  className={`px-4 py-2 rounded-xl border transition-colors text-sm cursor-pointer ${ssDefaults.includeAudio ? 'bg-haze-500/20 border-haze-500/50 text-haze-400' : 'bg-bg-tertiary border-border-primary text-text-secondary hover:bg-bg-elevated'}`}
                 >
                   {ssDefaults.includeAudio ? 'System Audio + Microphone' : 'No Audio'}
                 </button>
@@ -628,11 +614,7 @@ export default function SettingsPanel({
                     <button
                       key={t.value}
                       onClick={() => onThemeChange?.(t.value)}
-                      className={`px-4 py-2 rounded-xl border transition-colors text-sm ${
-                        theme === t.value
-                          ? 'bg-haze-500/20 border-haze-500/50 text-haze-300'
-                          : 'bg-bg-tertiary border-border-primary text-text-secondary hover:bg-bg-elevated'
-                      }`}
+                      className={`px-4 py-2 rounded-xl border transition-colors text-sm ${theme === t.value ? 'bg-haze-500/20 border-haze-500/50 text-haze-300' : 'bg-bg-tertiary border-border-primary text-text-secondary hover:bg-bg-elevated'}`}
                     >
                       {t.label}
                     </button>
