@@ -150,49 +150,6 @@ export default function ControlBar({
           disabled={!canToggleWhiteboard}
         />
 
-        {/* Sidebar tab buttons - Participants, Chat, Tools */}
-        <div className="flex items-center gap-0.5 p-1 rounded-xl bg-bg-tertiary/50 border border-border-primary/50">
-          <CircularButton
-            label="Participants"
-            icon={User}
-            active={sidebarOpen && sidebarTab === 'participants'}
-            onClick={() => {
-              if (sidebarTab === 'participants') {
-                onToggleSidebar()
-              } else {
-                onSidebarTabChange('participants')
-                if (!sidebarOpen) onToggleSidebar()
-              }
-            }}
-          />
-          <CircularButton
-            label="Chat"
-            icon={MessageSquare}
-            active={sidebarOpen && sidebarTab === 'chat'}
-            onClick={() => {
-              if (sidebarTab === 'chat') {
-                onToggleSidebar()
-              } else {
-                onSidebarTabChange('chat')
-                if (!sidebarOpen) onToggleSidebar()
-              }
-            }}
-          />
-          <CircularButton
-            label="Tools"
-            icon={PenTool}
-            active={sidebarOpen && sidebarTab === 'tools'}
-            onClick={() => {
-              if (sidebarTab === 'tools') {
-                onToggleSidebar()
-              } else {
-                onSidebarTabChange('tools')
-                if (!sidebarOpen) onToggleSidebar()
-              }
-            }}
-          />
-        </div>
-
         {/* Grid Layout Controls */}
         <div className="relative">
           <button
@@ -313,6 +270,7 @@ function CircularButton({ label, icon: Icon, active, onClick, disabled, size = '
       onClick={onClick}
       disabled={disabled}
       title={label}
+      data-sidebar-trigger
       className={`
         relative rounded-full transition-all duration-200
         ${sizeClasses[size]}

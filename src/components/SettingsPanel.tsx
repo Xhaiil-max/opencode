@@ -212,7 +212,7 @@ export default function SettingsPanel({
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
-      <div className="glass-card w-full max-w-2xl mx-4 flex flex-col max-h-[85vh] animate-scale-in">
+      <div className="glass-card w-full max-w-3xl mx-4 flex flex-col max-h-[85vh] animate-scale-in">
         <div className="flex items-center justify-between p-4 border-b border-border-primary shrink-0">
           <h2 className="text-lg font-display font-medium">Settings</h2>
           <button onClick={onClose} className="btn-ghost btn-icon-sm" aria-label="Close">
@@ -220,19 +220,20 @@ export default function SettingsPanel({
           </button>
         </div>
 
-        <div className="flex gap-1 p-2 border-b border-border-primary shrink-0 overflow-x-auto scrollbar-thin">
-          {tabs.map(({ name, label, icon: Icon }) => (
-            <button
-              key={name}
-              onClick={() => setActiveTab(name as TabName)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${activeTab === name ? 'bg-bg-tertiary text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'}`}
-            >
-              <Icon size={14} /> {label}
-            </button>
-          ))}
-        </div>
+        <div className="flex flex-1 min-h-0">
+          <div className="w-44 shrink-0 overflow-y-auto p-2 border-r border-border-primary space-y-1">
+            {tabs.map(({ name, label, icon: Icon }) => (
+              <button
+                key={name}
+                onClick={() => setActiveTab(name as TabName)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors text-left ${activeTab === name ? 'bg-haze-500/20 text-haze-400' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'}`}
+              >
+                <Icon size={15} /> {label}
+              </button>
+            ))}
+          </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 scrollbar-thin">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 scrollbar-thin">
           {activeTab === 'audio' && (
             <div className="flex flex-col gap-6">
               <div>
@@ -741,6 +742,7 @@ export default function SettingsPanel({
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, forwardRef } from 'react'
 import type { User, ChatMessage, SidebarTab, HostSettings } from '../types'
 import { Mic, MicOff, Video, VideoOff, MonitorUp, MessageSquare, Users, Smile, PenTool, Hand, MoreHorizontal, VolumeX, Trash2, X, Pin, EarOff } from 'lucide-react'
 import { WaveformDots } from './AudioVisualizer'
@@ -26,12 +26,12 @@ interface SidebarProps {
   unpinParticipant?: (identity: string) => void
 }
 
-export default function Sidebar({
+const Sidebar = forwardRef<HTMLDivElement, SidebarProps>(function Sidebar({
   users, localIdentity, messages, tab, onTabChange, chatDisabled, onSendMessage,
   isLocalHost, onBroadcastHostAction, onToggleWhiteboard, whiteboardOpen,
   hostSettings, onUpdateHostSettings, onClose,
   pinnedParticipantId, pinParticipant, unpinParticipant
-}: SidebarProps) {
+}, ref) {
   const [input, setInput] = useState('')
 
   const send = () => {
@@ -61,7 +61,7 @@ export default function Sidebar({
   }
 
   return (
-    <div className="w-80 glass border-r border-border-primary flex flex-col h-full min-h-0 shrink-0">
+    <div ref={ref} className="w-80 glass border-r border-border-primary flex flex-col h-full min-h-0 shrink-0 z-40">
       <div className="flex items-center justify-between p-2 gap-1 border-b border-border-primary shrink-0">
         <div className="flex items-center gap-1 flex-1">
           <button onClick={() => onTabChange('participants')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${tab === 'participants' ? 'bg-bg-tertiary text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'}`}>
@@ -586,4 +586,5 @@ function ToolsTab({
       </div>
     </div>
   )
-}
+})
+export default Sidebar

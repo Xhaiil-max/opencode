@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import type { User } from '../types'
-import { Mic, MicOff, MonitorUp, Volume2, VolumeX, Eye, EyeOff, MoreVertical, EarOff, VolumeX as MuteIcon, EarOff as DeafenIcon, VideoOff, Pin } from 'lucide-react'
+import { Mic, MicOff, MonitorUp, Volume2, VolumeX, Eye, EyeOff, MoreVertical, EarOff, VolumeX as MuteIcon, EarOff as DeafenIcon, VideoOff, Pin, X } from 'lucide-react'
 import ParticipantVideo from './ParticipantVideo'
 import { WaveformDots } from './AudioVisualizer'
 import { Track, ConnectionState, type Participant } from 'livekit-client'
@@ -321,8 +321,14 @@ export default function ParticipantTile({ user, isCurrent, isDeafened, participa
               className="fixed z-[9999] w-56 glass-strong rounded-xl p-3 shadow-2xl flex flex-col gap-2.5"
               style={{ top, left, maxHeight: '80vh', overflowY: 'auto' }}
             >
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-text-muted">Options</span>
+                <button onClick={() => setShowMenu(false)} className="p-1 rounded hover:bg-bg-tertiary transition-colors text-text-secondary hover:text-text-primary" title="Close menu">
+                  <X size={14} />
+                </button>
+              </div>
               {isScreenShare && (
-                <button onClick={() => setWatchingSS(!watchingSS)} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg hover:bg-bg-tertiary transition-colors cursor-pointer">
+                <button onClick={() => { setWatchingSS(!watchingSS); setShowMenu(false); }} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg hover:bg-bg-tertiary transition-colors cursor-pointer">
                   {watchingSS ? <EyeOff size={14} className="text-accent-warning" /> : <Eye size={14} />} {watchingSS ? "Don't watch" : 'Watch'}
                 </button>
               )}
@@ -337,23 +343,23 @@ export default function ParticipantTile({ user, isCurrent, isDeafened, participa
                   className="w-full accent-haze-500 h-1"
                 />
               </div>
-              <button onClick={() => setLocalMute(!localMute)} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg hover:bg-bg-tertiary transition-colors cursor-pointer">
+              <button onClick={() => { setLocalMute(!localMute); setShowMenu(false); }} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg hover:bg-bg-tertiary transition-colors cursor-pointer">
                 {localMute ? <VolumeX size={14} className="text-accent-error" /> : <Volume2 size={14} />} {localMute ? 'Unmute' : 'Mute'}
               </button>
-              <button onClick={() => setLocalVideoOff(!localVideoOff)} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg hover:bg-bg-tertiary transition-colors cursor-pointer">
+              <button onClick={() => { setLocalVideoOff(!localVideoOff); setShowMenu(false); }} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg hover:bg-bg-tertiary transition-colors cursor-pointer">
                 {localVideoOff ? <Eye size={14} /> : <EyeOff size={14} className="text-accent-error" />} {localVideoOff ? 'Show Video' : 'Hide Video (Local)'}
               </button>
               {isLocalHost && !isLocal && (
                 <>
                   <div className="border-t border-border-primary my-1" />
                   <div className="text-xs text-text-muted px-1 mb-1">Host Controls</div>
-                  <button onClick={() => muteParticipant?.(user.id)} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg hover:bg-bg-tertiary transition-colors cursor-pointer">
+                  <button onClick={() => { muteParticipant?.(user.id); setShowMenu(false); }} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg hover:bg-bg-tertiary transition-colors cursor-pointer">
                     <MuteIcon size={14} className="text-accent-warning" /> Mute Participant
                   </button>
-                  <button onClick={() => deafenParticipant?.(user.id)} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg hover:bg-bg-tertiary transition-colors cursor-pointer">
+                  <button onClick={() => { deafenParticipant?.(user.id); setShowMenu(false); }} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg hover:bg-bg-tertiary transition-colors cursor-pointer">
                     <DeafenIcon size={14} className="text-accent-warning" /> Deafen Participant
                   </button>
-                  <button onClick={() => disableVideo?.(user.id)} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg hover:bg-bg-tertiary transition-colors cursor-pointer">
+                  <button onClick={() => { disableVideo?.(user.id); setShowMenu(false); }} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg hover:bg-bg-tertiary transition-colors cursor-pointer">
                     <VideoOff size={14} className="text-accent-warning" /> Turn Off Camera
                   </button>
                 </>

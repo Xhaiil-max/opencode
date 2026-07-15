@@ -448,13 +448,8 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
           </div>
 
           {sidebarOpen && (
-            <>
-              {/* Click outside to close */}
-              <div 
-                className="fixed inset-0 z-30 bg-black/0"
-                onClick={() => setSidebarOpen(false)}
-              />
-              <Sidebar
+            <Sidebar
+              ref={sidebarRef}
               users={lk.users}
               localIdentity={username}
               messages={lk.messages}
@@ -474,7 +469,6 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
               pinParticipant={lk.pinParticipant}
               unpinParticipant={lk.unpinParticipant}
             />
-            </>
           )}
 
           {showScreenshare && (
