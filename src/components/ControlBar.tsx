@@ -1,8 +1,9 @@
-import type { GridPreset } from '../types'
-import { useState, useEffect, useRef, type RefObject } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import type { Ref } from 'react'
+import type { GridPreset, User, ChatMessage, SidebarTab, HostSettings, ScreenShareUser, FontSettings, ThemeName, Keybind } from '../types'
 import {
   Mic, MicOff, Video, VideoOff, MonitorUp, Hand, Ear, EarOff,
-  Settings, PhoneOff, ChevronUp, PanelRight, User, PenTool,
+  Settings, PhoneOff, ChevronUp, PanelRight, User as LucideUser, PenTool,
   Grid3x3, SplitSquareVertical, Menu, MessageSquare
 } from 'lucide-react'
 
@@ -24,8 +25,8 @@ interface ControlBarProps {
   onEndCall: () => void
   sidebarOpen: boolean
   onToggleSidebar: () => void
-  sidebarTab: 'participants' | 'chat' | 'tools'
-  onSidebarTabChange: (tab: 'participants' | 'chat' | 'tools') => void
+  sidebarTab: SidebarTab
+  onSidebarTabChange: (tab: SidebarTab) => void
   selfViewMode: string
   onSelfViewModeToggle: () => void
   onSwitchAudioDevice: (deviceId: string) => void
@@ -34,10 +35,18 @@ interface ControlBarProps {
   onToggleWhiteboard: () => void
   disableWhiteboard?: boolean
   isLocalHost?: boolean
-  gridPreset: 'tiled' | 'spotlight' | 'speaker' | 'sidebar'
-  onGridPresetChange: (preset: 'tiled' | 'spotlight' | 'speaker' | 'sidebar') => void
+  gridPreset: GridPreset
+  onGridPresetChange: (preset: GridPreset) => void
   requestMediaPermissions: () => void
-  ref?: RefObject<HTMLDivElement>
+  users: User[]
+  localIdentity: string
+  messages: ChatMessage[]
+  hostSettings: HostSettings
+  screenShares: ScreenShareUser[]
+  fontSettings: FontSettings
+  theme: ThemeName
+  keybinds: Keybind[]
+  ref?: Ref<HTMLDivElement | null>
 }
 
 export default function ControlBar({
@@ -162,7 +171,7 @@ export default function ControlBar({
         <div className="w-px h-6 bg-border-primary mx-1" />
         <ControlButton
           label={selfViewMode === 'floating' ? 'Self View: Floating' : 'Self View: Grid'}
-          icon={User}
+          icon={LucideUser}
           active={selfViewMode === 'floating'}
           onClick={onSelfViewModeToggle}
         />
@@ -218,7 +227,7 @@ export default function ControlBar({
         <div className="flex items-center gap-0.5 ml-1">
           <CircularButton
             label="Participants"
-            icon={User}
+            icon={LucideUser}
             active={sidebarOpen && sidebarTab === 'participants'}
             onClick={() => {
               if (sidebarOpen && sidebarTab === 'participants') {

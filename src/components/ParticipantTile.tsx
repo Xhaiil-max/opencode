@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import type { User } from '../types'
-import { Mic, MicOff, MonitorUp, Volume2, VolumeX, Eye, EyeOff, MoreVertical, EarOff, VolumeX as MuteIcon, EarOff as DeafenIcon, VideoOff, Pin, X } from 'lucide-react'
+import { Mic, MicOff, MonitorUp, Volume2, VolumeX, Eye, EyeOff, MoreVertical, EarOff, VolumeX as MuteIcon, EarOff as DeafenIcon, VideoOff, Pin, X, Hand } from 'lucide-react'
 import ParticipantVideo from './ParticipantVideo'
 import { WaveformDots } from './AudioVisualizer'
 import { Track, ConnectionState, type Participant } from 'livekit-client'
@@ -250,7 +250,7 @@ export default function ParticipantTile({ user, isCurrent, isDeafened, participa
             <WaveformDots level={user.audioLevel} isSpeaking={user.isSpeaking} color={userColor} className="items-center" />
           )}
           {user.micOn ? <Mic size={12} className="text-accent-success" /> : <MicOff size={12} className="text-accent-error" />}
-          {user.handRaised && <span className="text-accent-warning text-xs">✋</span>}
+          {user.handRaised && <Hand size={12} className="text-accent-warning" />}
           {user.isSharing ? (
             <>
               <MonitorUp size={12} className="text-accent-success" />

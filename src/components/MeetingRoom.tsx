@@ -120,7 +120,6 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
   const unifiedMenuRef = useRef<HTMLDivElement>(null)
   const sidebarRef = useRef<HTMLDivElement>(null)
   const controlBarRef = useRef<HTMLDivElement>(null)
-  const controlBarRef = useRef<HTMLDivElement>(null)
 
   // Handle whiteboard toggle from host
   useEffect(() => {
@@ -587,6 +586,14 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
               gridPreset={gridPreset}
               onGridPresetChange={setGridPreset}
               requestMediaPermissions={lk.requestMediaPermissions}
+              users={lk.users}
+              localIdentity={username}
+              messages={lk.messages}
+              hostSettings={lk.hostSettings}
+              screenShares={lk.screenShares}
+              fontSettings={lk.fontSettings}
+              theme={lk.theme}
+              keybinds={lk.keybinds}
             />
           </div>
 
