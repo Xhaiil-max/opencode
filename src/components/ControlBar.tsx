@@ -1,5 +1,5 @@
 import type { GridPreset } from '../types'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type RefObject } from 'react'
 import {
   Mic, MicOff, Video, VideoOff, MonitorUp, Hand, Ear, EarOff,
   Settings, PhoneOff, ChevronUp, PanelRight, User, PenTool,
@@ -37,6 +37,7 @@ interface ControlBarProps {
   gridPreset: 'tiled' | 'spotlight' | 'speaker' | 'sidebar'
   onGridPresetChange: (preset: 'tiled' | 'spotlight' | 'speaker' | 'sidebar') => void
   requestMediaPermissions: () => void
+  ref?: RefObject<HTMLDivElement>
 }
 
 export default function ControlBar({
@@ -51,6 +52,7 @@ export default function ControlBar({
   gridPreset, onGridPresetChange,
   onSidebarTabChange, sidebarTab,
   requestMediaPermissions,
+  ref,
 }: ControlBarProps) {
   const [showMicOptions, setShowMicOptions] = useState(false)
   const [showCamOptions, setShowCamOptions] = useState(false)
@@ -60,7 +62,6 @@ export default function ControlBar({
   const gridDropdownRef = useRef<HTMLDivElement>(null)
 
   const canToggleWhiteboard = isLocalHost || !disableWhiteboard
-  const podRef = useRef<HTMLDivElement>(null)
 
   // Click outside to close specific dropdowns
   useEffect(() => {
@@ -84,7 +85,7 @@ export default function ControlBar({
   }, [showMicOptions, showCamOptions, showGridOptions])
 
   return (
-    <div ref={podRef} data-control-bar className="flex items-center justify-center gap-1.5 p-3 shrink-0">
+    <div ref={ref} data-control-bar className="flex items-center justify-center gap-1.5 p-3 shrink-0">
       <div className="flex items-center gap-1 glass p-1.5 rounded-2xl border border-border-primary/50 backdrop-blur">
         <ButtonGroup
           label={isMicOn ? 'Mute' : 'Unmute'}

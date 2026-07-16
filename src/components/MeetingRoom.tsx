@@ -119,6 +119,8 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
   const [tileScale, setTileScale] = useState(100)
   const unifiedMenuRef = useRef<HTMLDivElement>(null)
   const sidebarRef = useRef<HTMLDivElement>(null)
+  const controlBarRef = useRef<HTMLDivElement>(null)
+  const controlBarRef = useRef<HTMLDivElement>(null)
 
   // Handle whiteboard toggle from host
   useEffect(() => {
@@ -152,6 +154,7 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
         // Don't close if clicking on control bar buttons or sidebar trigger buttons
         if (target.closest('[data-sidebar-trigger]')) return
         if (target.closest('[data-control-bar]')) return
+        if (controlBarRef.current && controlBarRef.current.contains(target as Node)) return
         setSidebarOpen(false)
       }
     }
@@ -421,7 +424,7 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
       <LocalIdentityContext.Provider value={username}>
         <div className="flex h-screen bg-bg-primary overflow-hidden">
           <div className="flex-1 flex flex-col relative">
-            <div className="flex items-center justify-between px-3 py-1.5 glass-strong/50 border-b border-border-primary shrink-0">
+            <div className="flex items-center justify-between px-2 py-1 glass-strong/50 border-b border-border-primary shrink-0">
               <span className="text-sm text-text-secondary">
                 Meeting: <code className="text-text-primary font-mono">{roomName}</code>
               </span>
@@ -553,6 +556,7 @@ export default function MeetingRoom({ username, roomName, isHost, onLeave }: Mee
             )}
 
             <ControlBar
+              ref={controlBarRef}
               isMicOn={lk.isMicOn}
               isCamOn={lk.isCamOn}
               isSharing={lk.isSharing}
